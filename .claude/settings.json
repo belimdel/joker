@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -s http://localhost:5174/)",
+      "Bash(curl -s \"http://localhost:5174/src/socket.ts\")",
+      "PowerShell(npx.cmd eslint src/screens/Board.tsx src/components/JokerModal.tsx src/components/PlayerSeat.tsx 2>&1)",
+      "PowerShell($env:CI='1'; Start-Job -Name vite -ScriptBlock { Set-Location 'C:\\\\Users\\\\hmher\\\\OneDrive\\\\Bureau\\\\Joker\\\\client'; & npx.cmd vite --port 5180 --strictPort } | Out-Null; Start-Sleep -Seconds 6; \"job started\")"
+    ]
+  }
+}

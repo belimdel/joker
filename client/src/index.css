@@ -1,0 +1,288 @@
+/* ════════════════════════════════════════════════════════════════
+   JOKER — Design system « salon de cartes géorgien »
+   Feutre vert profond, accents laiton/or, typographie gravée.
+   Mobile-first, variables CSS pour la cohérence.
+   ════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* — Feutre — */
+  --felt-center: #1d7a59;
+  --felt-mid: #0e5038;
+  --felt-edge: #06301d;
+
+  /* — Laiton / or — */
+  --brass: #d8b160;
+  --brass-bright: #f2d79a;
+  --brass-dim: #9a7b3a;
+  --brass-shadow: #4f3d18;
+
+  /* — Surfaces sombres (panneaux) — */
+  --panel: #0e3b2b;
+  --panel-2: #092a1e;
+  --line: rgba(216, 177, 96, 0.26);
+  --line-strong: rgba(216, 177, 96, 0.55);
+
+  /* — Carte à jouer — */
+  --card-cream: #f7f0de;
+  --card-cream-2: #ebdcbd;
+  --card-ink: #1f242b;
+  --card-red: #b22f28;
+  --card-edge: #d8cba4;
+
+  /* — Texte — */
+  --text: #f4ead0;
+  --text-dim: #aebfb2;
+  --text-ink: #15160f;
+
+  /* — Accents — */
+  --glow: #ffe39a;
+  --danger: #e8765c;
+  --ok: #76d39a;
+
+  /* — Typographie — */
+  --font-display: "Cinzel", Georgia, "Times New Roman", serif;
+  --font-body: "Spectral", Georgia, serif;
+
+  /* — Mesures — */
+  --card-w: 72px;
+  --radius: 16px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-body);
+  color: var(--text);
+  background: radial-gradient(
+      ellipse 130% 95% at 50% 26%,
+      var(--felt-center),
+      var(--felt-mid) 46%,
+      var(--felt-edge) 100%
+    )
+    fixed;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overscroll-behavior: none;
+}
+
+/* Grain de feutre (texture subtile, atmosphère) */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.06;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+#root {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ─── Typographie ─────────────────────────────────────────────── */
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  margin: 0;
+}
+
+.jk-brand {
+  font-family: var(--font-display);
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  background: linear-gradient(180deg, var(--brass-bright), var(--brass) 55%, var(--brass-dim));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.35);
+}
+
+.jk-eyebrow {
+  font-family: var(--font-display);
+  font-size: 0.72rem;
+  letter-spacing: 0.34em;
+  text-transform: uppercase;
+  color: var(--brass);
+  opacity: 0.85;
+}
+
+/* ─── Panneau (feutre + filet laiton double) ──────────────────── */
+.jk-panel {
+  position: relative;
+  background: linear-gradient(180deg, var(--panel), var(--panel-2));
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow:
+    0 24px 70px rgba(0, 0, 0, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+.jk-panel::after {
+  content: "";
+  position: absolute;
+  inset: 6px;
+  border: 1px solid var(--line);
+  border-radius: calc(var(--radius) - 6px);
+  pointer-events: none;
+}
+
+/* ─── Boutons ─────────────────────────────────────────────────── */
+.jk-btn {
+  font-family: var(--font-display);
+  font-size: 0.92rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 0.72rem 1.3rem;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.2);
+  color: var(--text);
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.2s ease, background 0.2s ease,
+    border-color 0.2s ease, opacity 0.2s ease;
+}
+.jk-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  border-color: var(--line-strong);
+}
+.jk-btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+.jk-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.jk-btn--primary {
+  background: linear-gradient(180deg, var(--brass-bright), var(--brass) 52%, var(--brass-dim));
+  color: #2c1f06;
+  border: 1px solid var(--brass-bright);
+  font-weight: 700;
+  box-shadow:
+    0 8px 22px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+.jk-btn--primary:hover:not(:disabled) {
+  box-shadow:
+    0 12px 28px rgba(0, 0, 0, 0.45),
+    0 0 22px rgba(255, 227, 154, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+.jk-btn--ghost {
+  background: transparent;
+}
+
+.jk-btn--block {
+  width: 100%;
+}
+
+/* ─── Champs ──────────────────────────────────────────────────── */
+.jk-input {
+  font-family: var(--font-body);
+  font-size: 1rem;
+  width: 100%;
+  padding: 0.78rem 0.95rem;
+  color: var(--text);
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.jk-input::placeholder {
+  color: rgba(244, 234, 208, 0.4);
+}
+.jk-input:focus {
+  outline: none;
+  border-color: var(--brass);
+  box-shadow: 0 0 0 3px rgba(216, 177, 96, 0.18);
+}
+.jk-input--code {
+  font-family: var(--font-display);
+  letter-spacing: 0.42em;
+  text-transform: uppercase;
+  text-align: center;
+  font-size: 1.4rem;
+}
+
+.jk-label {
+  display: block;
+  font-size: 0.74rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 0.45rem;
+}
+
+/* ─── Pastille d'erreur ───────────────────────────────────────── */
+.jk-error {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.65rem 0.9rem;
+  border-radius: 12px;
+  background: rgba(232, 118, 92, 0.14);
+  border: 1px solid rgba(232, 118, 92, 0.5);
+  color: #ffd9cd;
+  font-size: 0.92rem;
+}
+
+/* ─── Animations ──────────────────────────────────────────────── */
+@keyframes jk-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes jk-turn-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(255, 227, 154, 0);
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgba(255, 227, 154, 0.35), 0 0 26px rgba(255, 227, 154, 0.4);
+  }
+}
+@keyframes jk-deal {
+  from {
+    opacity: 0;
+    transform: translateY(-40px) rotate(-8deg) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.jk-fade-up {
+  animation: jk-fade-up 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+/* ─── Conteneur d'écran ───────────────────────────────────────── */
+.jk-screen {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}

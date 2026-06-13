@@ -1,0 +1,165 @@
+/* ─── Carte à jouer ──────────────────────────────────────────────
+   Face crème à pips, dos ornemental laiton, rendu Joker spécial.
+   Taille pilotée par --card-w ; ratio 5/7 (carte réelle). */
+
+.jk-card {
+  --w: var(--card-w);
+  position: relative;
+  width: var(--w);
+  aspect-ratio: 5 / 7;
+  border-radius: calc(var(--w) * 0.12);
+  padding: 0;
+  border: none;
+  font-family: var(--font-display);
+  background: linear-gradient(150deg, var(--card-cream), var(--card-cream-2));
+  box-shadow:
+    0 6px 14px rgba(0, 0, 0, 0.4),
+    inset 0 0 0 1px rgba(0, 0, 0, 0.08),
+    inset 0 0 0 3px rgba(255, 255, 255, 0.4);
+  color: var(--card-ink);
+  overflow: hidden;
+  user-select: none;
+  transition: transform 0.16s cubic-bezier(0.2, 0.7, 0.2, 1), box-shadow 0.2s ease,
+    filter 0.2s ease;
+  animation: jk-deal 0.45s cubic-bezier(0.2, 0.8, 0.25, 1) both;
+}
+
+/* Tailles */
+.jk-card--sm {
+  --w: calc(var(--card-w) * 0.62);
+}
+.jk-card--md {
+  --w: var(--card-w);
+}
+.jk-card--lg {
+  --w: calc(var(--card-w) * 1.32);
+}
+
+/* États */
+.jk-card.is-clickable {
+  cursor: pointer;
+}
+.jk-card.is-clickable:hover {
+  transform: translateY(-12px);
+  box-shadow:
+    0 18px 30px rgba(0, 0, 0, 0.5),
+    inset 0 0 0 3px rgba(255, 255, 255, 0.5);
+}
+.jk-card.is-selected {
+  transform: translateY(-16px);
+  box-shadow:
+    0 0 0 2px var(--brass-bright),
+    0 18px 34px rgba(0, 0, 0, 0.5);
+}
+.jk-card.is-disabled {
+  filter: grayscale(0.55) brightness(0.82);
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+/* ─── Face normale ─── */
+.jk-card__face {
+  position: absolute;
+  inset: 0;
+}
+.jk-card__face--red {
+  color: var(--card-red);
+}
+.jk-card__face--ink {
+  color: var(--card-ink);
+}
+
+.jk-card__corner {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 0.92;
+}
+.jk-card__corner--tl {
+  top: calc(var(--w) * 0.07);
+  left: calc(var(--w) * 0.09);
+}
+.jk-card__corner--br {
+  bottom: calc(var(--w) * 0.07);
+  right: calc(var(--w) * 0.09);
+  transform: rotate(180deg);
+}
+.jk-card__rank {
+  font-weight: 700;
+  font-size: calc(var(--w) * 0.26);
+}
+.jk-card__suit {
+  font-size: calc(var(--w) * 0.2);
+  margin-top: calc(var(--w) * 0.01);
+}
+
+/* Gros symbole central */
+.jk-card__pip {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: calc(var(--w) * 0.62);
+  opacity: 0.92;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+
+/* ─── Joker ─── */
+.jk-card--joker {
+  background: linear-gradient(160deg, #11402f, #0b2c20);
+  color: var(--brass-bright);
+  box-shadow:
+    0 6px 14px rgba(0, 0, 0, 0.45),
+    inset 0 0 0 2px rgba(216, 177, 96, 0.55),
+    inset 0 0 0 5px rgba(255, 255, 255, 0.04);
+}
+.jk-card__joker {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: calc(var(--w) * 0.06);
+}
+.jk-card__joker-star {
+  font-size: calc(var(--w) * 0.5);
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.5));
+  animation: jk-joker-twinkle 3s ease-in-out infinite;
+}
+.jk-card__joker-word {
+  font-size: calc(var(--w) * 0.155);
+  letter-spacing: 0.22em;
+  font-weight: 700;
+}
+@keyframes jk-joker-twinkle {
+  0%, 100% { transform: rotate(0deg) scale(1); opacity: 0.92; }
+  50% { transform: rotate(8deg) scale(1.08); opacity: 1; }
+}
+
+/* ─── Dos de carte (ornement laiton) ─── */
+.jk-card--back {
+  background:
+    repeating-linear-gradient(45deg, rgba(216, 177, 96, 0.16) 0 6px, transparent 6px 12px),
+    radial-gradient(circle at 50% 50%, #155640, #0a3528 70%);
+  box-shadow:
+    0 6px 14px rgba(0, 0, 0, 0.4),
+    inset 0 0 0 2px rgba(216, 177, 96, 0.5),
+    inset 0 0 0 5px rgba(0, 0, 0, 0.15);
+}
+.jk-card__back {
+  position: absolute;
+  inset: calc(var(--w) * 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(216, 177, 96, 0.5);
+  border-radius: calc(var(--w) * 0.08);
+}
+.jk-card__back-emblem {
+  color: var(--brass);
+  font-size: calc(var(--w) * 0.32);
+  opacity: 0.85;
+}

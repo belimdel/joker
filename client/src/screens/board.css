@@ -1,0 +1,626 @@
+/* ════════════════════════════════════════════════════════════════
+   JOKER — Plateau de jeu (Partie B)
+   Table de feutre : adversaires en haut/côtés, pli au centre, main en
+   bas. Réutilise les tokens du design system (index.css). Mobile-first.
+   ════════════════════════════════════════════════════════════════ */
+
+.jk-table {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-height: 100%;
+}
+
+/* ─── Bandeau supérieur (donne / set / quitter) ───────────────── */
+.jk-table__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  padding: 0.7rem clamp(0.7rem, 3vw, 1.4rem);
+  border-bottom: 1px solid var(--line);
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.28), transparent);
+}
+.jk-table__deal {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.15rem;
+}
+.jk-table__cards {
+  font-family: var(--font-display);
+  color: var(--brass-bright);
+  font-size: 0.92rem;
+  letter-spacing: 0.06em;
+}
+.jk-table__leave {
+  padding: 0.45rem 0.9rem;
+  font-size: 0.72rem;
+}
+
+/* ─── La table (grille positionnée) ───────────────────────────── */
+.jk-table__felt {
+  flex: 1;
+  display: grid;
+  gap: clamp(0.6rem, 2vw, 1.2rem);
+  padding: clamp(0.6rem, 2.5vw, 1.4rem);
+  grid-template-columns: minmax(80px, 1fr) minmax(200px, 2.2fr) minmax(80px, 1fr);
+  grid-template-rows: auto 1fr auto;
+  grid-template-areas:
+    ".    top    ."
+    "left center right"
+    "hand hand   hand";
+}
+
+.jk-pos--top {
+  grid-area: top;
+  justify-self: center;
+}
+.jk-pos--left {
+  grid-area: left;
+  align-self: center;
+  justify-self: start;
+}
+.jk-pos--right {
+  grid-area: right;
+  align-self: center;
+  justify-self: end;
+}
+.jk-pos--center {
+  grid-area: center;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.jk-pos--hand {
+  grid-area: hand;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+/* ─── Siège joueur ────────────────────────────────────────────── */
+.jk-pseat {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem 0.7rem;
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(14, 59, 43, 0.85), rgba(9, 42, 30, 0.85));
+  border: 1px solid var(--line);
+  max-width: 220px;
+  transition: border-color 0.25s ease, box-shadow 0.25s ease, transform 0.2s ease;
+}
+.jk-pseat.is-turn {
+  border-color: var(--brass-bright);
+  animation: jk-turn-pulse 1.8s ease-in-out infinite;
+}
+.jk-pseat.is-me {
+  background: linear-gradient(180deg, rgba(216, 177, 96, 0.14), rgba(9, 42, 30, 0.9));
+}
+
+.jk-pseat__avatar {
+  position: relative;
+  flex: none;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.1rem;
+  color: #2c1f06;
+  background: radial-gradient(circle at 35% 30%, var(--brass-bright), var(--brass) 60%, var(--brass-dim));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), 0 3px 8px rgba(0, 0, 0, 0.4);
+}
+.jk-pseat__dealer {
+  position: absolute;
+  bottom: -4px;
+  right: -4px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--panel-2);
+  border: 1px solid var(--brass);
+  color: var(--brass-bright);
+  font-size: 0.6rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+}
+
+.jk-pseat__info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+.jk-pseat__name {
+  font-family: var(--font-display);
+  font-size: 0.92rem;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.jk-pseat__score {
+  font-size: 0.74rem;
+  color: var(--brass);
+  letter-spacing: 0.04em;
+}
+.jk-pseat__meta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.15rem;
+  font-size: 0.76rem;
+  color: var(--text-dim);
+}
+.jk-pseat__bid {
+  font-style: italic;
+}
+.jk-pseat__contract {
+  font-family: var(--font-display);
+  letter-spacing: 0.03em;
+  color: var(--text);
+}
+.jk-pseat__contract.is-met {
+  color: var(--ok);
+}
+.jk-pseat__contract.is-over {
+  color: var(--danger);
+}
+.jk-pseat__count {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: var(--text-dim);
+}
+.jk-minicard {
+  display: inline-block;
+  width: 11px;
+  height: 15px;
+  border-radius: 2px;
+  background:
+    repeating-linear-gradient(45deg, rgba(216, 177, 96, 0.4) 0 2px, transparent 2px 4px),
+    radial-gradient(circle, #155640, #0a3528);
+  border: 1px solid rgba(216, 177, 96, 0.5);
+}
+
+/* ─── Centre : atout + pli ────────────────────────────────────── */
+.jk-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  height: 100%;
+}
+.jk-center--bidding .jk-trump-label {
+  font-family: var(--font-display);
+  color: var(--brass-bright);
+  letter-spacing: 0.05em;
+}
+.jk-center__hint {
+  color: var(--text-dim);
+  font-style: italic;
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+/* Pli en cours : 4 ancrages autour du centre */
+.jk-trick {
+  position: relative;
+  width: clamp(180px, 40vw, 260px);
+  height: clamp(180px, 40vw, 260px);
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 227, 154, 0.07), transparent 70%);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.jk-trick__slot {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+}
+.jk-trick__slot--self {
+  transform: translate(-50%, 18%);
+}
+.jk-trick__slot--top {
+  transform: translate(-50%, -118%);
+}
+.jk-trick__slot--left {
+  transform: translate(-118%, -50%);
+}
+.jk-trick__slot--right {
+  transform: translate(18%, -50%);
+}
+
+.jk-played {
+  position: relative;
+}
+.jk-played__joker {
+  position: absolute;
+  bottom: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 8px;
+  background: var(--panel-2);
+  border: 1px solid var(--brass);
+  color: var(--brass-bright);
+  font-size: 0.66rem;
+  font-family: var(--font-display);
+  white-space: nowrap;
+}
+.jk-played__joker .is-red {
+  color: var(--danger);
+}
+
+/* Atout en réduction pendant le jeu */
+.jk-trump-mini {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  text-align: center;
+}
+.jk-trump-mini__suit {
+  font-size: 0.7rem;
+  color: var(--brass-bright);
+  font-family: var(--font-display);
+}
+
+/* Bannière « X remporte le pli » */
+.jk-winnerbanner {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 6;
+  padding: 0.6rem 1.2rem;
+  border-radius: 999px;
+  background: linear-gradient(180deg, var(--brass-bright), var(--brass-dim));
+  color: #2c1f06;
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 0 26px rgba(255, 227, 154, 0.4);
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+/* ─── Ma zone (siège compact + action + main) ─────────────────── */
+.jk-myzone {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+}
+.jk-myzone__action {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  justify-content: flex-end;
+  min-width: 180px;
+}
+.jk-turnnote {
+  font-family: var(--font-display);
+  letter-spacing: 0.05em;
+  color: var(--text-dim);
+}
+.jk-turnnote.is-active {
+  color: var(--brass-bright);
+}
+
+/* Barre d'enchères */
+.jk-bidbar {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.jk-bidbar__label {
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 0.74rem;
+  color: var(--brass);
+}
+.jk-bidbar__btns {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+.jk-bidbar__btn {
+  min-width: 44px;
+  padding: 0.55rem 0.7rem;
+  font-size: 1rem;
+}
+.jk-bidbar__hook {
+  width: 100%;
+  text-align: right;
+  font-size: 0.7rem;
+  font-style: italic;
+  color: var(--text-dim);
+}
+
+/* La main */
+.jk-hand {
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  padding-top: 0.4rem;
+  min-height: calc(var(--card-w) * 1.4 + 12px);
+}
+.jk-hand__slot {
+  margin-left: -18px;
+  transition: transform 0.15s ease, z-index 0s;
+}
+.jk-hand__slot:first-child {
+  margin-left: 0;
+}
+.jk-hand__slot:hover {
+  z-index: 5;
+}
+
+/* ─── Toast d'erreur ──────────────────────────────────────────── */
+.jk-toast {
+  position: fixed;
+  top: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  padding: 0.7rem 1rem;
+  border-radius: 12px;
+  background: rgba(232, 118, 92, 0.16);
+  border: 1px solid rgba(232, 118, 92, 0.6);
+  color: #ffd9cd;
+  font-size: 0.9rem;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
+  animation: jk-fade-up 0.3s both;
+  max-width: 90vw;
+}
+.jk-toast__close {
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  font-size: 0.85rem;
+  opacity: 0.8;
+}
+.jk-toast__close:hover {
+  opacity: 1;
+}
+
+/* ─── Overlays (récap + joker + game over) ────────────────────── */
+.jk-modal,
+.jk-recap {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.2rem;
+  background: rgba(3, 18, 12, 0.66);
+  backdrop-filter: blur(3px);
+}
+
+.jk-modal__panel,
+.jk-recap__panel {
+  width: 100%;
+  max-width: 360px;
+  padding: 1.4rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+.jk-modal__card {
+  margin: 0.2rem 0;
+}
+.jk-modal__group {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.jk-modal__row {
+  display: flex;
+  gap: 0.5rem;
+}
+.jk-modal__row .jk-btn {
+  flex: 1;
+}
+.jk-modal__suit {
+  font-size: 1.4rem;
+  padding: 0.5rem;
+}
+.jk-modal__suit.is-red {
+  color: var(--card-red);
+}
+.jk-modal__suit.jk-btn--primary.is-red {
+  color: #7a1410;
+}
+.jk-modal__actions {
+  display: flex;
+  gap: 0.6rem;
+  width: 100%;
+  margin-top: 0.3rem;
+}
+.jk-modal__actions .jk-btn {
+  flex: 1;
+}
+
+/* Récap de manche */
+.jk-recap__title {
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  margin: 0;
+}
+.jk-recap__list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.jk-recap__row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem 0.7rem;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.22);
+  border: 1px solid var(--line);
+}
+.jk-recap__name {
+  font-family: var(--font-display);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.jk-recap__delta {
+  font-family: var(--font-display);
+  font-weight: 700;
+  color: var(--text-dim);
+  min-width: 48px;
+  text-align: right;
+}
+.jk-recap__delta.is-pos {
+  color: var(--ok);
+}
+.jk-recap__total {
+  font-size: 0.8rem;
+  color: var(--brass);
+  min-width: 56px;
+  text-align: right;
+}
+
+/* ─── Écran de fin de partie ──────────────────────────────────── */
+.jk-gameover {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.2rem;
+  padding: clamp(1.2rem, 5vw, 2.5rem);
+  width: 100%;
+  max-width: 460px;
+  margin: 0 auto;
+  text-align: center;
+}
+.jk-gameover__list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.jk-gameover__row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.8rem;
+  padding: 0.8rem 1rem;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.24);
+  border: 1px solid var(--line);
+}
+.jk-gameover__row:first-child {
+  border-color: var(--brass-bright);
+  background: rgba(216, 177, 96, 0.12);
+}
+.jk-gameover__row.is-me {
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+}
+.jk-gameover__rank {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.2rem;
+  color: var(--brass-bright);
+  width: 1.6rem;
+}
+.jk-gameover__name {
+  text-align: left;
+  font-family: var(--font-display);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.jk-gameover__score {
+  font-family: var(--font-display);
+  color: var(--brass);
+}
+
+/* ════════════════════════════════════════════════════════════════
+   Responsive : sur mobile, les 3 adversaires en haut, pli au centre,
+   main en bas. Cartes réduites pour tenir à l'écran.
+   ════════════════════════════════════════════════════════════════ */
+@media (max-width: 720px) {
+  .jk-table__felt {
+    --card-w: 56px;
+    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-rows: auto 1fr auto;
+    grid-template-areas:
+      "left top right"
+      "center center center"
+      "hand hand hand";
+  }
+  .jk-pos--left,
+  .jk-pos--right,
+  .jk-pos--top {
+    justify-self: center;
+    align-self: start;
+  }
+  .jk-pseat {
+    flex-direction: column;
+    text-align: center;
+    gap: 0.3rem;
+    padding: 0.4rem 0.5rem;
+    max-width: 110px;
+  }
+  .jk-pseat__info {
+    align-items: center;
+  }
+  .jk-pseat__name {
+    max-width: 96px;
+  }
+  .jk-hand__slot {
+    margin-left: -26px;
+  }
+  .jk-myzone {
+    justify-content: center;
+  }
+  .jk-myzone__action {
+    justify-content: center;
+  }
+  .jk-bidbar {
+    justify-content: center;
+  }
+}
