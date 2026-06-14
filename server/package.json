@@ -4,10 +4,10 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-  "dev": "tsx watch src/index.ts",
-  "prestart": "chmod +x node_modules/.bin/tsx",
-  "start": "node_modules/.bin/tsx src/index.ts"
-},
+    "dev": "tsx watch src/index.ts",
+    "prestart": "chmod +x node_modules/.bin/tsx",
+    "start": "node_modules/.bin/tsx src/index.ts"
+  },
   "keywords": [],
   "author": "",
   "license": "ISC",
@@ -15,6 +15,7 @@
   "dependencies": {
     "cors": "^2.8.6",
     "express": "^5.2.1",
+    "mime": "^4.1.0",
     "socket.io": "^4.8.3",
     "socket.io-client": "^4.8.3",
     "tsx": "^4.22.4"
@@ -22,6 +23,7 @@
   "devDependencies": {
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
+    "@types/mime": "^3.0.4",
     "@types/node": "^25.9.3",
     "typescript": "^6.0.3"
   }

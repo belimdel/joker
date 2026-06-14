@@ -3,6 +3,8 @@ import { createServer } from "http";
 import { randomUUID } from "crypto";
 import { Server } from "socket.io";
 import cors from "cors";
+import path from "path";
+import mime from "mime";
 import { GameManager, GameManagerError, NetworkGame } from "./GameManager";
 import { submitBid, submitCard } from "../../shared/game";
 import { buildPlayerView } from "../../shared/views";
@@ -16,27 +18,12 @@ import type {
 const app = express();
 app.use(cors());
 
-
-
-import path from "path";
-
-
-const clientDistPath = path.join(
-  process.cwd(),
-  "../client/dist"
-);
-
-app.use(express.static(clientDistPath));
-
-app.get(/.*/, (_req, res) => {
-  res.sendFile(path.join(clientDistPath, "index.html"));
-});
-
 // Socket.IO a besoin d'un serveur HTTP "brut" pour s'y attacher.
 const httpServer = createServer(app);
 
 // Serveur Socket.IO TYPÉ : les événements client→serveur et serveur→client
-// sont contraints par le contrat partagé (shared/events.ts).
+// sont contraints par le contrat partagé (shared/events.ts). Attaché à
+// httpServer AVANT le fallback SPA, sinon ce dernier intercepte /socket.io/.
 const allowedOrigin =
   process.env.CLIENT_URL || "http://localhost:5173";
 
@@ -237,6 +224,26 @@ io.on("connection", (socket) => {
       }
     });
   });
+});
+
+// ─── Statique / fallback SPA ────────────────────────────────────
+// Déclaré APRÈS Socket.IO : sinon ce fallback (`/.*`) intercepterait
+// les requêtes `/socket.io/` et répondrait avec index.html → 404 WS.
+const clientDistPath = path.join(process.cwd(), "../client/dist");
+
+// Express 5 sert parfois les .css en text/plain : on force le bon
+// Content-Type via `mime` pour que le navigateur applique les styles.
+app.use(
+  express.static(clientDistPath, {
+    setHeaders: (res, filePath) => {
+      const type = mime.getType(filePath);
+      if (type) res.setHeader("Content-Type", type);
+    },
+  })
+);
+
+app.get(/.*/, (_req, res) => {
+  res.sendFile(path.join(clientDistPath, "index.html"));
 });
 
 const PORT = Number(process.env.PORT) || 3001;
