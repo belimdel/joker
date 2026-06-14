@@ -1,5 +1,6 @@
 import express from "express";
 import { createServer } from "http";
+import { randomUUID } from "crypto";
 import { Server } from "socket.io";
 import cors from "cors";
 import { GameManager, GameManagerError, NetworkGame } from "./GameManager";
@@ -83,8 +84,37 @@ function toGameError(e: unknown): GameErrorPayload {
   return { code: "ILLEGAL_MOVE", message: (e as Error).message };
 }
 
+// Identifiant de session envoyé par le client (persisté en localStorage,
+// cf. client/src/socket.ts). Sert à reconnecter un socket qui revient après
+// un refresh de page. Si absent/invalide, on en fabrique un nouveau : le
+// client ne pourra simplement pas être reconnu en cas de refresh.
+function sessionIdOf(socket: { handshake: { auth: Record<string, unknown> } }): string {
+  const raw = socket.handshake.auth?.sessionId;
+  return typeof raw === "string" && raw.length > 0 ? raw : randomUUID();
+}
+
 io.on("connection", (socket) => {
   console.log(`✅ Connecté : ${socket.id}`);
+
+  // ── Reconnexion silencieuse (refresh de page) ──
+  // Avant tout autre traitement : si ce sessionId correspond à un joueur
+  // en grace period, on le raccroche à sa partie/son siège et on lui
+  // réémet son état, sans rien diffuser aux autres joueurs.
+  const sessionId = sessionIdOf(socket);
+  const reconnected = manager.reconnect(sessionId, socket.id);
+  if (reconnected) {
+    const { game, seat, pseudo } = reconnected;
+    socket.join(game.gameId);
+    socket.emit("sessionRestored", { gameId: game.gameId, seat, pseudo });
+    if (game.status === "waiting") {
+      socket.emit("lobbyUpdate", lobbyPayload(game));
+    }
+    if (game.state) {
+      socket.emit("gameStateUpdate", buildPlayerView(game.state, seat));
+    }
+    console.log(`🔄 Reconnexion silencieuse : "${pseudo}" → ${game.gameId} (siège ${seat})`);
+  }
+
   socket.emit("welcome", { message: "Connecté au serveur Joker !" });
 
   // ── Créer une partie ──
@@ -94,7 +124,7 @@ io.on("connection", (socket) => {
       socket.emit("gameError", { code: "INVALID_PAYLOAD", message: "Pseudo manquant." });
       return;
     }
-    const game = manager.createGame(name, socket.id);
+    const game = manager.createGame(name, socket.id, sessionId);
     socket.join(game.gameId);
     socket.emit("gameCreated", { gameId: game.gameId, seat: 0 });
     io.to(game.gameId).emit("lobbyUpdate", lobbyPayload(game));
@@ -113,7 +143,7 @@ io.on("connection", (socket) => {
       return;
     }
     try {
-      const game = manager.joinGame(id, name, socket.id);
+      const game = manager.joinGame(id, name, socket.id, sessionId);
       socket.join(id);
       io.to(id).emit("lobbyUpdate", lobbyPayload(game));
       console.log(`➕ "${name}" a rejoint ${id} (${game.players.length}/4)`);
@@ -193,15 +223,19 @@ io.on("connection", (socket) => {
     broadcastViews(game);
   });
 
-  // ── Déconnexion : retirer le joueur, diffuser, nettoyer ──
+  // ── Déconnexion : grace period avant retrait définitif ──
+  // Le joueur garde son siège pendant RECONNECT_GRACE_MS au cas où il
+  // reviendrait (refresh de page). Diffusion seulement si le délai expire
+  // sans reconnexion.
   socket.on("disconnect", () => {
     console.log(`❌ Déconnecté : ${socket.id}`);
-    const { game, gameId, deleted } = manager.removePlayer(socket.id);
-    if (game && gameId) {
-      io.to(gameId).emit("lobbyUpdate", lobbyPayload(game));
-    } else if (deleted && gameId) {
-      console.log(`🗑️ Partie ${gameId} supprimée (vide).`);
-    }
+    manager.handleDisconnect(socket.id, ({ game, gameId, deleted }) => {
+      if (game && gameId) {
+        io.to(gameId).emit("lobbyUpdate", lobbyPayload(game));
+      } else if (deleted && gameId) {
+        console.log(`🗑️ Partie ${gameId} supprimée (vide).`);
+      }
+    });
   });
 });
 

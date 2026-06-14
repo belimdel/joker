@@ -8,13 +8,33 @@ import type {
 export const MAX_PLAYERS = 4;
 export const ID_LENGTH = 4;
 
+// Délai de grâce avant suppression définitive d'un joueur déconnecté
+// (refresh de page, micro-coupure réseau...). Le tier gratuit Render peut
+// être lent à réveiller une connexion : on reste large.
+export const RECONNECT_GRACE_MS = 15000;
+
 // ─── Modèle réseau d'une partie (côté serveur) ──────────────────
 // Note : NetworkPlayer porte le socketId (interne, jamais diffusé). La
 // vue publique (PlayerPublic) ne contient que siège + pseudo.
 export type NetworkPlayer = {
   socketId: string;
+  sessionId: string;
   pseudo: string;
   seat: number; // 0-3
+};
+
+// Résultat d'une suppression différée (grace period écoulée) ou immédiate.
+export type RemovePlayerResult = {
+  game: NetworkGame | null;
+  gameId: string | null;
+  deleted: boolean;
+};
+
+// Résultat d'une reconnexion réussie via sessionId.
+export type ReconnectResult = {
+  game: NetworkGame;
+  seat: number;
+  pseudo: string;
 };
 
 export type NetworkGame = {
@@ -47,24 +67,29 @@ export class GameManager {
   private games = new Map<string, NetworkGame>();
   // Index inverse socketId → gameId (un socket est dans au plus 1 partie).
   private socketToGame = new Map<string, string>();
+  // Index inverse sessionId → gameId (survit à la déconnexion du socket).
+  private sessionToGame = new Map<string, string>();
+  // Timers de suppression différée, par sessionId.
+  private disconnectTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
   // ── Créer une partie : le créateur prend le siège 0 ──
-  createGame(pseudo: string, socketId: string): NetworkGame {
+  createGame(pseudo: string, socketId: string, sessionId: string): NetworkGame {
     const gameId = this.generateUniqueId();
     const game: NetworkGame = {
       gameId,
-      players: [{ socketId, pseudo, seat: 0 }],
+      players: [{ socketId, sessionId, pseudo, seat: 0 }],
       status: "waiting",
       state: null,
     };
     this.games.set(gameId, game);
     this.socketToGame.set(socketId, gameId);
+    this.sessionToGame.set(sessionId, gameId);
     return game;
   }
 
   // ── Rejoindre une partie existante ──
   // Lève GameManagerError si la partie est introuvable ou complète.
-  joinGame(gameId: string, pseudo: string, socketId: string): NetworkGame {
+  joinGame(gameId: string, pseudo: string, socketId: string, sessionId: string): NetworkGame {
     const game = this.games.get(gameId);
     if (!game) {
       throw new GameManagerError(
@@ -76,8 +101,9 @@ export class GameManager {
       throw new GameManagerError("GAME_FULL", `La partie ${gameId} est complète.`);
     }
     const seat = this.lowestFreeSeat(game);
-    game.players.push({ socketId, pseudo, seat });
+    game.players.push({ socketId, sessionId, pseudo, seat });
     this.socketToGame.set(socketId, gameId);
+    this.sessionToGame.set(sessionId, gameId);
     return game;
   }
 
@@ -103,6 +129,61 @@ export class GameManager {
       return { game: null, gameId, deleted: true };
     }
     return { game, gameId, deleted: false };
+  }
+
+  // ── Déconnexion avec grace period ──
+  // N'enlève PAS immédiatement le joueur : son siège est conservé pendant
+  // RECONNECT_GRACE_MS au cas où le même sessionId se reconnecte (refresh
+  // de page). Le socket mort est désindexé tout de suite (un nouveau socket
+  // ne doit pas pouvoir "hériter" de cette entrée). Si le délai expire sans
+  // reconnexion, `onExpire` est appelé avec le résultat de la suppression
+  // définitive (pour diffuser lobbyUpdate ou logguer la suppression).
+  handleDisconnect(socketId: string, onExpire: (result: RemovePlayerResult) => void): void {
+    const gameId = this.socketToGame.get(socketId);
+    if (!gameId) return;
+    this.socketToGame.delete(socketId);
+
+    const game = this.games.get(gameId);
+    const player = game?.players.find((p) => p.socketId === socketId);
+    if (!game || !player) return;
+
+    const { sessionId } = player;
+    const existing = this.disconnectTimers.get(sessionId);
+    if (existing) clearTimeout(existing);
+
+    const timer = setTimeout(() => {
+      this.disconnectTimers.delete(sessionId);
+      onExpire(this.finalizeRemoval(sessionId));
+    }, RECONNECT_GRACE_MS);
+    this.disconnectTimers.set(sessionId, timer);
+  }
+
+  // ── Reconnexion silencieuse via sessionId ──
+  // Retrouve le joueur (toujours présent grâce à la grace period), annule
+  // sa suppression différée, et raccroche son siège au nouveau socket.
+  // Retourne `null` si la session ne correspond à aucune partie active
+  // (partie déjà supprimée, grace period déjà écoulée, session inconnue...).
+  reconnect(sessionId: string, newSocketId: string): ReconnectResult | null {
+    const gameId = this.sessionToGame.get(sessionId);
+    if (!gameId) return null;
+
+    const game = this.games.get(gameId);
+    const player = game?.players.find((p) => p.sessionId === sessionId);
+    if (!game || !player) {
+      this.sessionToGame.delete(sessionId);
+      return null;
+    }
+
+    const timer = this.disconnectTimers.get(sessionId);
+    if (timer) {
+      clearTimeout(timer);
+      this.disconnectTimers.delete(sessionId);
+    }
+
+    player.socketId = newSocketId;
+    this.socketToGame.set(newSocketId, gameId);
+
+    return { game, seat: player.seat, pseudo: player.pseudo };
   }
 
   getGame(gameId: string): NetworkGame | undefined {
@@ -149,6 +230,26 @@ export class GameManager {
   }
 
   // ── Helpers privés ──
+
+  // Suppression définitive d'un joueur après expiration de la grace period
+  // (cf. handleDisconnect). Même sémantique que removePlayer, mais indexée
+  // par sessionId puisque le socketId d'origine est déjà mort.
+  private finalizeRemoval(sessionId: string): RemovePlayerResult {
+    const gameId = this.sessionToGame.get(sessionId);
+    this.sessionToGame.delete(sessionId);
+    if (!gameId) return { game: null, gameId: null, deleted: false };
+
+    const game = this.games.get(gameId);
+    if (!game) return { game: null, gameId, deleted: false };
+
+    game.players = game.players.filter((p) => p.sessionId !== sessionId);
+
+    if (game.players.length === 0) {
+      this.games.delete(gameId);
+      return { game: null, gameId, deleted: true };
+    }
+    return { game, gameId, deleted: false };
+  }
 
   // Plus petit siège libre (permet de réoccuper un siège laissé vacant).
   private lowestFreeSeat(game: NetworkGame): number {

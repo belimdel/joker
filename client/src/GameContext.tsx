@@ -10,7 +10,11 @@ import {
 import { socket } from "./socket";
 import type { Card, Suit } from "@shared/cards";
 import type { JokerAnnounce } from "@shared/trick";
-import type { LobbyUpdatePayload, GameErrorPayload } from "@shared/events";
+import type {
+  LobbyUpdatePayload,
+  GameErrorPayload,
+  SessionRestoredPayload,
+} from "@shared/events";
 import type { PlayerView } from "@shared/views";
 
 // ─── État réseau exposé à toute l'app ───────────────────────────
@@ -51,6 +55,12 @@ export function GameProvider({ children }: { children: ReactNode }) {
     const onLobby = (p: LobbyUpdatePayload) => setLobby(p);
     const onState = (v: PlayerView) => setView(v);
     const onError = (e: GameErrorPayload) => setError(e);
+    // Reconnexion silencieuse après refresh : on retrouve notre siège et
+    // notre pseudo, le lobby/l'état de jeu suivent via leurs events propres.
+    const onSessionRestored = ({ seat, pseudo }: SessionRestoredPayload) => {
+      setIsHost(seat === 0);
+      setMyPseudo(pseudo);
+    };
 
     socket.on("connect", onConnect);
     socket.on("disconnect", onDisconnect);
@@ -58,6 +68,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     socket.on("lobbyUpdate", onLobby);
     socket.on("gameStateUpdate", onState);
     socket.on("gameError", onError);
+    socket.on("sessionRestored", onSessionRestored);
 
     return () => {
       socket.off("connect", onConnect);
@@ -66,6 +77,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       socket.off("lobbyUpdate", onLobby);
       socket.off("gameStateUpdate", onState);
       socket.off("gameError", onError);
+      socket.off("sessionRestored", onSessionRestored);
     };
   }, []);
 

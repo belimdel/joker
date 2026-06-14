@@ -77,6 +77,14 @@ export type GameErrorPayload = {
   message: string;
 };
 
+// Reconnexion silencieuse : renvoyé au SEUL socket qui revient (refresh de
+// page) pour qu'il sache dans quelle partie / quel siège il se trouve.
+export type SessionRestoredPayload = {
+  gameId: string;
+  seat: number;
+  pseudo: string;
+};
+
 // ─── Cartes d'événements pour typer Socket.IO de bout en bout ───
 // Événements émis PAR le client, reçus PAR le serveur.
 export interface ClientToServerEvents {
@@ -95,4 +103,6 @@ export interface ServerToClientEvents {
   gameError: (payload: GameErrorPayload) => void;
   // Vue filtrée PERSONNALISÉE par joueur (emit ciblé par socket).
   gameStateUpdate: (view: PlayerView) => void;
+  // Reconnexion silencieuse après un refresh (emit ciblé par socket).
+  sessionRestored: (payload: SessionRestoredPayload) => void;
 }
