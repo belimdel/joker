@@ -7,6 +7,7 @@ import { TurnTimer } from "../components/TurnTimer";
 import { BidStatus } from "../components/BidStatus";
 import { TrumpOverlay } from "../components/TrumpOverlay";
 import { BidOverlay } from "../components/BidOverlay";
+import { TrumpChoiceOverlay } from "../components/TrumpChoiceOverlay";
 import { ScoreModal } from "../components/ScoreModal";
 import { isLegalPlay } from "@shared/round";
 import type { Card, Suit } from "@shared/cards";
@@ -346,7 +347,15 @@ export function Board() {
           <div className="jk-myzone">
             <BidStatus bid={view.bids[me]} tricksWon={view.tricksWon[me]} />
             <div className="jk-myzone__action">
-              {view.roundPhase === "bidding" ? (
+              {view.roundPhase === "choosing-trump" ? (
+                isMyTurn ? (
+                  <span className="jk-turnnote is-active">À vous de choisir l'atout</span>
+                ) : (
+                  <span className="jk-turnnote">
+                    {pseudoOf(view.currentPlayer)} choisit l'atout…
+                  </span>
+                )
+              ) : view.roundPhase === "bidding" ? (
                 isMyTurn ? (
                   <span className="jk-turnnote is-active">À vous d'enchérir</span>
                 ) : (
@@ -390,6 +399,10 @@ export function Board() {
 
       {view.roundPhase === "bidding" && isMyTurn && (
         <BidOverlay view={view} onBid={placeBid} />
+      )}
+
+      {view.roundPhase === "choosing-trump" && view.trumpChoiceHand && (
+        <TrumpChoiceOverlay hand={view.trumpChoiceHand} />
       )}
 
       {showScores && (
