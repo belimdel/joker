@@ -53,3 +53,35 @@ const tD: PlayedCard[] = [
   { playerIndex: 2, card: c("hearts", "Q") },
 ];
 console.log("Joker bas perd (attendu 2) :", determineTrickWinner(tD, "spades"));
+
+// ═══════════════════════════════════════════════════════════════
+// Comportement des Jokers en SANS-ATOUT (trumpSuit = null)
+// ═══════════════════════════════════════════════════════════════
+// Aucune règle ne change : il n'existe simplement aucun atout pour
+// "racheter" un joker haut mené, et l'exception B ne peut donc jamais
+// se déclencher (trumpPlays est toujours vide quand trumpSuit = null).
+
+// ── Joker haut mené sans atout : rien ne peut le battre, il gagne ──
+const tE: PlayedCard[] = [
+  { playerIndex: 0, card: joker("joker1"), announce: "high", declaredSuit: "hearts" },
+  { playerIndex: 1, card: c("spades", "A") }, // défausse, pas d'atout pour couper
+  { playerIndex: 2, card: c("hearts", "K") },
+];
+console.log("Sans atout, joker haut mené gagne (attendu 0) :", determineTrickWinner(tE, null));
+
+// ── Joker bas mené sans atout, quelqu'un suit la couleur déclarée ──
+// → c'est le suiveur qui gagne (le joker bas perd, comme tD).
+const tF: PlayedCard[] = [
+  { playerIndex: 0, card: joker("joker1"), announce: "low", declaredSuit: "hearts" },
+  { playerIndex: 1, card: c("hearts", "9") },
+  { playerIndex: 2, card: c("hearts", "Q") },
+];
+console.log("Sans atout, joker bas perd au profit du suiveur (attendu 2) :", determineTrickWinner(tF, null));
+
+// ── Joker bas mené sans atout, personne ne suit → il gagne par défaut ──
+const tG: PlayedCard[] = [
+  { playerIndex: 0, card: joker("joker1"), announce: "low", declaredSuit: "hearts" },
+  { playerIndex: 1, card: c("diamonds", "8") }, // défausse
+  { playerIndex: 2, card: c("clubs", "9") },    // défausse
+];
+console.log("Sans atout, joker bas mené gagne par défaut (attendu 0) :", determineTrickWinner(tG, null));

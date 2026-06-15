@@ -1,5 +1,5 @@
 import { createGame, advanceToNextRound } from "./game";
-import { placeBid, playCard, RoundState } from "./round";
+import { placeBid, playCard, chooseTrump, RoundState } from "./round";
 import { allowedBids } from "./bidding";
 import { Card, Suit } from "./cards";
 import { check } from "./test-utils";
@@ -43,7 +43,15 @@ export function playRoundAutomatically(round: RoundState): RoundState {
       throw new Error("playRoundAutomatically : boucle anormale (sécurité)");
     }
 
-    if (r.phase === "bidding") {
+    if (r.phase === "choosing-trump") {
+      // Manche à 9 cartes : le décideur choisit l'atout de la couleur
+      // de sa 1re carte normale (ou passe si sa main de 3 n'a que des
+      // jokers — improbable mais couvert : suit = null = sans atout).
+      const p = r.currentPlayer;
+      const firstNormal = r.hands[p].find((c) => c.type === "normal");
+      const suit = firstNormal && firstNormal.type === "normal" ? firstNormal.suit : null;
+      r = chooseTrump(r, p, suit);
+    } else if (r.phase === "bidding") {
       const p = r.currentPlayer;
       const isLast = p === r.dealerIndex;
       const previous = r.bids.filter((b): b is number => b !== null);

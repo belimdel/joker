@@ -62,3 +62,53 @@ export function deal(
 
   return { hands, trumpSuit, trumpCard };
 }
+
+// ─── Distribution en deux temps (manches à 9 cartes) ─────────────
+// Sur ces manches, le 1er joueur choisit l'atout avant que le reste
+// des cartes ne soit distribué (cf. round.ts : phase "choosing-trump").
+
+// Le résultat d'une 1re distribution partielle.
+export type PartialDealResult = {
+  hands: Card[][];      // hands[firstSpeaker] = 3 cartes, les autres mains sont vides
+  remainingDeck: Card[]; // le reste du paquet, à distribuer après le choix
+};
+
+// ─── Distribuer les 3 premières cartes au 1er joueur ────────────
+// Le reste du paquet est conservé tel quel (remainingDeck), pour être
+// distribué par dealRemaining une fois l'atout choisi.
+export function dealFirstThree(
+  playerCount: number,
+  firstSpeaker: number,
+  deck: Card[]
+): PartialDealResult {
+  const hands: Card[][] = Array.from({ length: playerCount }, () => []);
+  hands[firstSpeaker] = deck.slice(0, 3);
+  return { hands, remainingDeck: deck.slice(3) };
+}
+
+// ─── Compléter la distribution après le choix d'atout ───────────
+// Distribue remainingDeck en tournant siège par siège (0, 1, 2, ...),
+// en ne servant que les joueurs dont la main n'a pas encore atteint
+// cardsPerPlayer. Le joueur qui a déjà reçu ses 3 cartes (cf.
+// dealFirstThree) en reçoit donc moins que les autres au total.
+// Retourne de NOUVELLES mains (hands n'est pas muté).
+export function dealRemaining(
+  playerCount: number,
+  cardsPerPlayer: number,
+  hands: Card[][],
+  remainingDeck: Card[]
+): Card[][] {
+  const result = hands.map((h) => [...h]);
+
+  let i = 0;
+  while (result.some((h) => h.length < cardsPerPlayer)) {
+    for (let p = 0; p < playerCount; p++) {
+      if (result[p].length < cardsPerPlayer) {
+        result[p].push(remainingDeck[i]);
+        i++;
+      }
+    }
+  }
+
+  return result;
+}

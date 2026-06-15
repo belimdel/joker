@@ -56,7 +56,7 @@ export function determineTrickWinner(
       );
       if (trumpPlays.length > 0) {
         // Le plus haut atout l'emporte sur le joker haut mené.
-        return highestTrump(trumpPlays, trumpSuit!);
+        return highestTrump(trumpPlays);
       }
     }
 
@@ -99,7 +99,9 @@ export function determineTrickWinner(
 }
 
 // ─── Helper : le plus haut atout parmi des cartes jouées ────────
-function highestTrump(trumpPlays: PlayedCard[], trumpSuit: Suit): number {
+// trumpPlays est déjà filtré par l'appelant (cartes de trumpSuit
+// uniquement) : pas besoin de la couleur ici, seule la force compte.
+function highestTrump(trumpPlays: PlayedCard[]): number {
   let best = trumpPlays[0];
   for (let i = 1; i < trumpPlays.length; i++) {
     const cand = trumpPlays[i];

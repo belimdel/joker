@@ -1,6 +1,6 @@
 import type { Card, Suit } from "./cards";
 import { rankStrength } from "./cards";
-import { deal } from "./deal";
+import { deal, dealFirstThree, dealRemaining } from "./deal";
 import { isBidAllowed } from "./bidding";
 import { determineTrickWinner, getLedSuit } from "./trick";
 import type { PlayedCard, JokerAnnounce } from "./trick";
@@ -12,11 +12,19 @@ import type { PlayedCard, JokerAnnounce } from "./trick";
 // NOUVEL état sans muter l'ancien. Toujours pur, toujours testable,
 // toujours sans réseau.
 //
-// La manche traverse trois phases :
+// La manche traverse jusqu'à quatre phases :
+//   "choosing-trump" → (manches à 9 cartes UNIQUEMENT) le 1er joueur,
+//                       qui n'a vu que ses 3 premières cartes, choisit
+//                       l'atout ou passe (sans atout). Les autres
+//                       manches sautent directement cette phase.
 //   "bidding"  → chacun annonce son contrat (enchères)
 //   "playing"  → on joue les plis un par un
 //   "finished" → toutes les cartes sont jouées, la manche est close
-export type RoundPhase = "bidding" | "playing" | "finished";
+export type RoundPhase = "choosing-trump" | "bidding" | "playing" | "finished";
+
+// Sur une manche à 9 cartes, le choix d'atout est réservé au 1er joueur
+// à parler (le joueur à gauche du donneur).
+const TRUMP_CHOICE_CARDS_PER_PLAYER = 9;
 
 // Durée allouée à un joueur pour agir (enchère ou carte), en millisecondes.
 // Source unique pour le timer serveur (auto-jeu) ET pour PlayerView
@@ -32,6 +40,12 @@ export type RoundState = {
   hands: Card[][]; // hands[i] = la main du joueur i
   trumpSuit: Suit | null; // couleur d'atout (null = sans atout)
   trumpCard: Card | null; // la carte retournée (affichage)
+
+  // Manches à 9 cartes : cartes restant à distribuer une fois l'atout
+  // choisi (cf. dealFirstThree / chooseTrump / dealRemaining). null
+  // si la distribution est complète (toutes les autres manches, et
+  // les manches à 9 cartes après le choix).
+  pendingDeck: Card[] | null;
 
   bids: (number | null)[]; // bids[i] = enchère du joueur i, null si pas encore parlé
   tricksWon: number[]; // tricksWon[i] = plis remportés par le joueur i
@@ -51,29 +65,24 @@ export type RoundState = {
 // Distribue (via deal), détermine l'atout, place tout le monde en
 // phase "bidding". Le premier à parler est le joueur À GAUCHE du
 // donneur ; le donneur, lui, parlera en dernier.
+//
+// EXCEPTION : sur une manche à 9 cartes, le choix de l'atout revient
+// au 1er joueur (voir chooseTrump). On ne distribue alors que SES 3
+// premières cartes (dealFirstThree) et on entre en phase
+// "choosing-trump" ; le reste du paquet (pendingDeck) sera distribué
+// par chooseTrump une fois son choix fait.
 export function createRound(
   playerCount: number,
   cardsPerPlayer: number,
   dealerIndex: number,
   deck: Card[]
 ): RoundState {
-  const { hands, trumpSuit, trumpCard } = deal(
-    playerCount,
-    cardsPerPlayer,
-    dealerIndex,
-    deck
-  );
-
   const firstSpeaker = (dealerIndex + 1) % playerCount;
 
-  return {
-    phase: "bidding",
+  const base = {
     playerCount,
     cardsPerPlayer,
     dealerIndex,
-    hands,
-    trumpSuit,
-    trumpCard,
     bids: Array.from({ length: playerCount }, () => null),
     tricksWon: Array.from({ length: playerCount }, () => 0),
     currentPlayer: firstSpeaker,
@@ -81,6 +90,74 @@ export function createRound(
     currentTrick: [],
     lastTrick: [],
     lastTrickWinner: null,
+  };
+
+  if (cardsPerPlayer === TRUMP_CHOICE_CARDS_PER_PLAYER) {
+    const { hands, remainingDeck } = dealFirstThree(playerCount, firstSpeaker, deck);
+    return {
+      ...base,
+      phase: "choosing-trump",
+      hands,
+      trumpSuit: null, // pas encore décidé : choisi par chooseTrump
+      trumpCard: null, // pas de carte retournée sur ces manches
+      pendingDeck: remainingDeck,
+    };
+  }
+
+  const { hands, trumpSuit, trumpCard } = deal(
+    playerCount,
+    cardsPerPlayer,
+    dealerIndex,
+    deck
+  );
+
+  return {
+    ...base,
+    phase: "bidding",
+    hands,
+    trumpSuit,
+    trumpCard,
+    pendingDeck: null,
+  };
+}
+
+// ─── Choisir l'atout (manches à 9 cartes) ────────────────────────
+// Réservé au 1er joueur (currentPlayer en phase "choosing-trump"), qui
+// n'a vu que ses 3 premières cartes. Il choisit librement une couleur
+// d'atout, OU passe (suit = null → manche SANS ATOUT). Dans les deux
+// cas : le reste du paquet est distribué (dealRemaining) et la manche
+// bascule en "bidding". Un seul décideur, aucune cascade.
+export function chooseTrump(
+  state: RoundState,
+  playerIndex: number,
+  suit: Suit | null
+): RoundState {
+  if (state.phase !== "choosing-trump") {
+    throw new Error(`chooseTrump impossible : phase "${state.phase}"`);
+  }
+  if (playerIndex !== state.currentPlayer) {
+    throw new Error(
+      `Pas le tour du joueur ${playerIndex} (tour de ${state.currentPlayer})`
+    );
+  }
+  if (state.pendingDeck === null) {
+    throw new Error("chooseTrump impossible : aucune carte en attente de distribution.");
+  }
+
+  const hands = dealRemaining(
+    state.playerCount,
+    state.cardsPerPlayer,
+    state.hands,
+    state.pendingDeck
+  );
+
+  return {
+    ...state,
+    phase: "bidding",
+    hands,
+    trumpSuit: suit,
+    trumpCard: null,
+    pendingDeck: null,
   };
 }
 

@@ -1,4 +1,4 @@
-import { createRound, placeBid, playCard, RoundState } from "./round";
+import { createRound, placeBid, playCard, chooseTrump, RoundState } from "./round";
 import { createDeck } from "./cards";
 import { Card } from "./cards";
 import { check, expectThrow } from "./test-utils";
@@ -110,6 +110,170 @@ check("lastTrick (pli 2) = le pli complet (4 cartes)", t.lastTrick, [
 ]);
 check("lastTrickWinner (pli 2) = joueur 3 (A♠)", t.lastTrickWinner, 3);
 
+console.log("\n══════ Manche à 8 cartes : pas de choix d'atout ══════");
+
+// Régression : une manche NON-9-cartes saute "choosing-trump" et part
+// directement en "bidding", comme avant.
+const eight: RoundState = createRound(4, 8, 0, createDeck());
+check("Manche à 8 : phase directe", eight.phase, "bidding");
+check("Manche à 8 : pendingDeck absent", eight.pendingDeck, null);
+
+console.log("\n══════ Manche à 9 cartes : choix de l'atout ══════");
+
+// createDeck() non mélangé, donneur 0 → 1er joueur = joueur 1.
+// Distribution déterministe (cf. investigation) :
+//   - joueur 1 reçoit ses 3 PREMIÈRES cartes : 7♠ 8♠ 9♠
+//   - les autres mains sont vides
+//   - 33 cartes restent en attente (pendingDeck)
+let n: RoundState = createRound(4, 9, 0, createDeck());
+
+check("Manche à 9 : phase initiale", n.phase, "choosing-trump");
+check("Manche à 9 : décideur = 1er joueur (gauche du donneur)", n.currentPlayer, 1);
+check("Manche à 9 : mains avant choix (tailles)", n.hands.map((h) => h.length), [0, 3, 0, 0]);
+check("Manche à 9 : 3 premières cartes du décideur", n.hands[1], [
+  { type: "normal", suit: "spades", rank: "7" },
+  { type: "normal", suit: "spades", rank: "8" },
+  { type: "normal", suit: "spades", rank: "9" },
+]);
+check("Manche à 9 : pendingDeck = reste du paquet (33 cartes)", n.pendingDeck?.length, 33);
+check("Manche à 9 : atout pas encore décidé", n.trumpSuit, null);
+check("Manche à 9 : pas de carte retournée", n.trumpCard, null);
+
+// ── On ne peut pas enchérir avant le choix d'atout ──
+expectThrow("Enchère impossible avant choix d'atout", () => placeBid(n, 1, 0));
+
+// ── Seul le décideur (joueur 1) peut choisir, et seulement en phase
+// "choosing-trump" ──
+expectThrow("Choix d'atout par un autre joueur que le décideur", () =>
+  chooseTrump(n, 0, "hearts")
+);
+
+// ── Choix d'une couleur : cœur ──
+const chosenHearts = chooseTrump(n, 1, "hearts");
+check("Choix cœur : phase → bidding", chosenHearts.phase, "bidding");
+check("Choix cœur : trumpSuit = hearts", chosenHearts.trumpSuit, "hearts");
+check("Choix cœur : pas de carte retournée", chosenHearts.trumpCard, null);
+check("Choix cœur : pendingDeck vidé", chosenHearts.pendingDeck, null);
+check("Choix cœur : mains complètes (9 chacun)", chosenHearts.hands.map((h) => h.length), [9, 9, 9, 9]);
+
+// Distribution complète attendue (déterministe, cf. investigation).
+check("Choix cœur : main du joueur 0", chosenHearts.hands[0], [
+  { type: "normal", suit: "spades", rank: "10" },
+  { type: "normal", suit: "spades", rank: "A" },
+  { type: "normal", suit: "hearts", rank: "9" },
+  { type: "normal", suit: "hearts", rank: "K" },
+  { type: "normal", suit: "diamonds", rank: "8" },
+  { type: "normal", suit: "diamonds", rank: "Q" },
+  { type: "normal", suit: "clubs", rank: "8" },
+  { type: "normal", suit: "clubs", rank: "J" },
+  { type: "normal", suit: "clubs", rank: "A" },
+]);
+check("Choix cœur : main du joueur 1 (3 initiales + 6)", chosenHearts.hands[1], [
+  { type: "normal", suit: "spades", rank: "7" },
+  { type: "normal", suit: "spades", rank: "8" },
+  { type: "normal", suit: "spades", rank: "9" },
+  { type: "normal", suit: "spades", rank: "J" },
+  { type: "normal", suit: "hearts", rank: "6" },
+  { type: "normal", suit: "hearts", rank: "10" },
+  { type: "normal", suit: "hearts", rank: "A" },
+  { type: "normal", suit: "diamonds", rank: "9" },
+  { type: "normal", suit: "diamonds", rank: "K" },
+]);
+check("Choix cœur : main du joueur 2", chosenHearts.hands[2], [
+  { type: "normal", suit: "spades", rank: "Q" },
+  { type: "normal", suit: "hearts", rank: "7" },
+  { type: "normal", suit: "hearts", rank: "J" },
+  { type: "normal", suit: "diamonds", rank: "6" },
+  { type: "normal", suit: "diamonds", rank: "10" },
+  { type: "normal", suit: "diamonds", rank: "A" },
+  { type: "normal", suit: "clubs", rank: "9" },
+  { type: "normal", suit: "clubs", rank: "Q" },
+  { type: "joker", id: "joker1" },
+]);
+check("Choix cœur : main du joueur 3", chosenHearts.hands[3], [
+  { type: "normal", suit: "spades", rank: "K" },
+  { type: "normal", suit: "hearts", rank: "8" },
+  { type: "normal", suit: "hearts", rank: "Q" },
+  { type: "normal", suit: "diamonds", rank: "7" },
+  { type: "normal", suit: "diamonds", rank: "J" },
+  { type: "normal", suit: "clubs", rank: "7" },
+  { type: "normal", suit: "clubs", rank: "10" },
+  { type: "normal", suit: "clubs", rank: "K" },
+  { type: "joker", id: "joker2" },
+]);
+
+// Après le choix, l'enchère normale peut commencer, le décideur (1)
+// parle en premier (comme avant : aucun changement).
+check("Choix cœur : 1er à enchérir = le décideur", chosenHearts.currentPlayer, 1);
+
+// ── Choix "passe" : sans atout, AUCUNE cascade vers un autre joueur ──
+const passState: RoundState = createRound(4, 9, 0, createDeck());
+const chosenNone = chooseTrump(passState, 1, null);
+check("Passe : phase → bidding", chosenNone.phase, "bidding");
+check("Passe : trumpSuit = null (sans atout)", chosenNone.trumpSuit, null);
+check("Passe : mains complètes (9 chacun)", chosenNone.hands.map((h) => h.length), [9, 9, 9, 9]);
+check("Passe : aucune cascade, le décideur reste 1er à parler", chosenNone.currentPlayer, 1);
+
+// ── Choisir l'atout hors phase "choosing-trump" → erreur ──
+expectThrow("Choix d'atout impossible une fois en bidding", () =>
+  chooseTrump(chosenHearts, 1, "spades")
+);
+expectThrow("Choix d'atout impossible sur une manche à 8 cartes", () =>
+  chooseTrump(eight, eight.currentPlayer, "spades")
+);
+
+console.log("\n══════ Sans atout : résolution de plis (bout à bout) ══════");
+
+// État fabriqué : 4 joueurs, 3 cartes chacun, trumpSuit = null (manche
+// sans atout, comme après un "passe" en choosing-trump).
+const noTrumpState: RoundState = {
+  phase: "playing",
+  playerCount: 4,
+  cardsPerPlayer: 3,
+  dealerIndex: 0,
+  hands: [
+    [c("spades", "7"), c("diamonds", "A"), c("clubs", "K")],
+    [c("spades", "8"), c("diamonds", "K"), c("hearts", "6")],
+    [c("spades", "9"), c("diamonds", "6"), c("hearts", "A")],
+    [c("spades", "10"), c("diamonds", "Q"), c("hearts", "7")],
+  ],
+  trumpSuit: null,
+  trumpCard: null,
+  pendingDeck: null,
+  bids: [0, 0, 0, 0],
+  tricksWon: [0, 0, 0, 0],
+  currentPlayer: 1,
+  trickLeader: 1,
+  currentTrick: [],
+  lastTrick: [],
+  lastTrickWinner: null,
+};
+
+// ── Pli 1 (pique demandé) : la plus haute carte de pique gagne (10♠) ──
+let nt = playCard(noTrumpState, 1, c("spades", "8"));
+nt = playCard(nt, 2, c("spades", "9"));
+nt = playCard(nt, 3, c("spades", "10"));
+nt = playCard(nt, 0, c("spades", "7"));
+check("Sans atout, pli 1 : 10♠ gagne (joueur 3)", nt.tricksWon, [0, 0, 0, 1]);
+check("Sans atout, pli 1 : le gagnant mène le pli suivant", nt.currentPlayer, 3);
+
+// ── Pli 2 (carreau demandé) : la plus haute carte de carreau gagne (A♦) ──
+nt = playCard(nt, 3, c("diamonds", "Q"));
+nt = playCard(nt, 0, c("diamonds", "A"));
+nt = playCard(nt, 1, c("diamonds", "K"));
+nt = playCard(nt, 2, c("diamonds", "6"));
+check("Sans atout, pli 2 : A♦ gagne (joueur 0)", nt.tricksWon, [1, 0, 0, 1]);
+
+// ── Pli 3 (trèfle demandé) : seul le K♣ suit, les défausses cœur (même
+// l'As♥) ne peuvent PAS gagner faute d'atout pour les "racheter" ──
+nt = playCard(nt, 0, c("clubs", "K"));
+nt = playCard(nt, 1, c("hearts", "6"));
+nt = playCard(nt, 2, c("hearts", "A"));
+nt = playCard(nt, 3, c("hearts", "7"));
+check("Sans atout, pli 3 : seul le K♣ suit → joueur 0 gagne", nt.tricksWon, [2, 0, 0, 1]);
+check("Sans atout : manche terminée, mains vidées", nt.phase, "finished");
+check("Sans atout : total plis = cartes par joueur", nt.tricksWon.reduce((a, b) => a + b, 0), 3);
+
 console.log("\n══════ Chemins d'erreur (fail fast) ══════");
 
 // Enchérir hors de son tour (c'est au joueur 1 de parler).
@@ -135,6 +299,7 @@ const renonceState: RoundState = {
   ],
   trumpSuit: "spades",
   trumpCard: null,
+  pendingDeck: null,
   bids: [1, 1],
   tricksWon: [0, 0],
   currentPlayer: 0,
