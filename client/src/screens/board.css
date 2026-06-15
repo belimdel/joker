@@ -480,47 +480,6 @@
   flex: 1;
 }
 
-/* Tableau des scores (ouvert via le bouton récap) */
-.jk-scoreboard__title {
-  font-family: var(--font-display);
-  font-size: 1.3rem;
-  margin: 0;
-}
-.jk-scoreboard__list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-}
-.jk-scoreboard__row {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  align-items: center;
-  gap: 0.6rem;
-  padding: 0.5rem 0.7rem;
-  border-radius: 10px;
-  background: rgba(0, 0, 0, 0.22);
-  border: 1px solid var(--line);
-}
-.jk-scoreboard__row.is-me {
-  box-shadow: inset 0 0 0 1px var(--line-strong);
-}
-.jk-scoreboard__name {
-  font-family: var(--font-display);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.jk-scoreboard__total {
-  font-size: 0.8rem;
-  color: var(--brass);
-  min-width: 56px;
-  text-align: right;
-}
-
 /* ─── Écran de fin de partie ──────────────────────────────────── */
 .jk-gameover {
   flex: 1;

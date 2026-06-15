@@ -1,4 +1,5 @@
-import { Card, Suit, Rank, rankStrength } from "./cards";
+import type { Card, Suit, Rank } from "./cards";
+import { rankStrength } from "./cards";
 
 export type JokerAnnounce = "high" | "low";
 

@@ -1,4 +1,4 @@
-import { Card, Suit } from "./cards";
+import type { Card, Suit } from "./cards";
 
 // Le résultat d'une distribution.
 export type DealResult = {

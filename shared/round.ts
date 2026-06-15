@@ -1,12 +1,9 @@
-import { Card, Suit, rankStrength } from "./cards";
+import type { Card, Suit } from "./cards";
+import { rankStrength } from "./cards";
 import { deal } from "./deal";
 import { isBidAllowed } from "./bidding";
-import {
-  determineTrickWinner,
-  getLedSuit,
-  PlayedCard,
-  JokerAnnounce,
-} from "./trick";
+import { determineTrickWinner, getLedSuit } from "./trick";
+import type { PlayedCard, JokerAnnounce } from "./trick";
 
 // ─── L'état d'une manche ─────────────────────────────────────────
 // round.ts assemble les briques pures (deal, bidding, trick) en une

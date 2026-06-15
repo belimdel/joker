@@ -1,7 +1,8 @@
-import { Card, Suit } from "./cards";
-import { JokerAnnounce } from "./trick";
+import type { Card, Suit } from "./cards";
+import type { JokerAnnounce } from "./trick";
 import { allowedBids } from "./bidding";
-import { isLegalPlay, RoundState } from "./round";
+import { isLegalPlay } from "./round";
+import type { RoundState } from "./round";
 
 // ─── Auto-jeu (timeout serveur) ──────────────────────────────────
 // Quand le timer de 15s d'un joueur expire, le serveur joue À SA

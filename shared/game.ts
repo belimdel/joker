@@ -1,6 +1,8 @@
-import { Card, Suit, createDeck, shuffle } from "./cards";
-import { JokerAnnounce } from "./trick";
-import { createRound, placeBid, playCard, RoundState } from "./round";
+import type { Card, Suit } from "./cards";
+import { createDeck, shuffle } from "./cards";
+import type { JokerAnnounce } from "./trick";
+import { createRound, placeBid, playCard } from "./round";
+import type { RoundState } from "./round";
 import { computePlayerScore } from "./scoring";
 
 // ─── Niveau PARTIE ───────────────────────────────────────────────

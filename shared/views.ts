@@ -1,7 +1,8 @@
-import { Card, Suit } from "./cards";
-import { PlayedCard } from "./trick";
-import { RoundPhase, TURN_DURATION_MS } from "./round";
-import { DealResult, GamePhase, GameState } from "./game";
+import type { Card, Suit } from "./cards";
+import type { PlayedCard } from "./trick";
+import type { RoundPhase } from "./round";
+import { TURN_DURATION_MS } from "./round";
+import type { DealResult, GamePhase, GameState } from "./game";
 
 // ─── La vue filtrée d'un joueur ─────────────────────────────────
 // SÉCURITÉ : le GameState complet contient les mains de TOUS les
