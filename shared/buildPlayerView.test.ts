@@ -1,5 +1,6 @@
 import { buildPlayerView } from "./views";
 import { createGame, GameState } from "./game";
+import { TURN_DURATION_MS } from "./round";
 import { Card } from "./cards";
 import { check } from "./test-utils";
 
@@ -45,6 +46,15 @@ check("Vue : atout visible", v0.trumpSuit, "spades");
 check("Vue : carte d'atout visible", v0.trumpCard, c("spades", "Q"));
 check("Vue : donneur visible", v0.dealerIndex, known.dealerIndex);
 check("Vue : phase de manche", v0.roundPhase, "bidding");
+
+// ── Pli complet + timer + historique ──
+check("Vue : lastTrick vide initialement", v0.lastTrick, []);
+check("Vue : lastTrickWinner initial = null", v0.lastTrickWinner, null);
+check("Vue : turnDurationMs = TURN_DURATION_MS", v0.turnDurationMs, TURN_DURATION_MS);
+check("Vue : roundHistory vide initialement", v0.roundHistory, []);
+
+const vWithTimer = buildPlayerView(known, 0, 123456);
+check("Vue : turnStartedAt transmis explicitement", vWithTimer.turnStartedAt, 123456);
 
 // ── ANTI-FUITE : aucune carte adverse ne doit apparaître ──
 // On sérialise la vue et on vérifie qu'aucune couleur adverse n'y est.

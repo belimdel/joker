@@ -33,7 +33,7 @@ export function JokerModal({ card, mustDeclareSuit, onConfirm, onCancel }: Joker
   const ready = announce !== null && (!mustDeclareSuit || suit !== null);
 
   return (
-    <div className="jk-modal" role="dialog" aria-modal="true" aria-label="Jouer un Joker">
+    <div className="jk-modal jk-modal--clear" role="dialog" aria-modal="true" aria-label="Jouer un Joker">
       <div className="jk-panel jk-modal__panel jk-fade-up">
         <div className="jk-eyebrow">Jouer le Joker</div>
 

@@ -21,6 +21,11 @@ import {
 //   "finished" → toutes les cartes sont jouées, la manche est close
 export type RoundPhase = "bidding" | "playing" | "finished";
 
+// Durée allouée à un joueur pour agir (enchère ou carte), en millisecondes.
+// Source unique pour le timer serveur (auto-jeu) ET pour PlayerView
+// (le client calcule l'affichage de la barre à partir de turnStartedAt).
+export const TURN_DURATION_MS = 15000;
+
 export type RoundState = {
   phase: RoundPhase;
   playerCount: number;
@@ -37,6 +42,12 @@ export type RoundState = {
   currentPlayer: number; // à qui de jouer / d'enchérir
   trickLeader: number; // qui a mené le pli en cours
   currentTrick: PlayedCard[]; // cartes déjà posées dans le pli en cours
+
+  // Dernier pli COMPLET (4 cartes) et son gagnant, conservés pour
+  // affichage côté client (le pli est vidé juste après pour démarrer
+  // le suivant). Réinitialisés à [] / null par createRound.
+  lastTrick: PlayedCard[];
+  lastTrickWinner: number | null;
 };
 
 // ─── Créer une manche ────────────────────────────────────────────
@@ -71,6 +82,8 @@ export function createRound(
     currentPlayer: firstSpeaker,
     trickLeader: firstSpeaker,
     currentTrick: [],
+    lastTrick: [],
+    lastTrickWinner: null,
   };
 }
 
@@ -230,6 +243,8 @@ export function playCard(
       hands,
       tricksWon,
       currentTrick: [],
+      lastTrick: currentTrick,
+      lastTrickWinner: winner,
       phase: "finished",
       currentPlayer: winner,
       trickLeader: winner,
@@ -242,6 +257,8 @@ export function playCard(
     hands,
     tricksWon,
     currentTrick: [],
+    lastTrick: currentTrick,
+    lastTrickWinner: winner,
     currentPlayer: winner,
     trickLeader: winner,
   };

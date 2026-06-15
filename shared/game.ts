@@ -17,6 +17,27 @@ export type DealPlan = {
 
 export type GamePhase = "playing" | "finished";
 
+// ─── Résultat d'une donne TERMINÉE (historique) ──────────────────
+// Capturé par advanceToNextRound au moment où la donne se clôt :
+// enchères, plis remportés et score BRUT (computePlayerScore, AVANT
+// toute prime/effacement de fin de set — ceux-ci n'affectent que le
+// cumul `scores`, pas le détail par donne).
+export type DealResult = {
+  dealIndex: number;
+  cardsPerPlayer: number;
+  bids: number[];
+  tricksWon: number[];
+  scores: number[];
+  // Comme bids/tricksWon/scores : tableau indexé par siège.
+  // doubled[p] = true si la manche du joueur p a été doublée par la
+  // prime de set (p est gagnant et CETTE donne est sa meilleure du set).
+  doubled: boolean[];
+  // erased[p] = true si la manche du joueur p a été effacée par la
+  // prime d'un adversaire (p est non-gagnant et CETTE donne est sa
+  // meilleure du set, ciblée par l'effacement).
+  erased: boolean[];
+};
+
 export type GameState = {
   playerCount: number;
   schedule: DealPlan[]; // la séquence ordonnée des 24 donnes
@@ -32,6 +53,9 @@ export type GameState = {
   setDealScores: number[][];
   // Par joueur : a-t-il réussi TOUTES ses enchères du set jusqu'ici ?
   setAllMade: boolean[];
+
+  // Historique des donnes TERMINÉES (une entrée par donne jouée).
+  dealHistory: DealResult[];
 };
 
 // ─── La séquence des donnes d'une partie ─────────────────────────
@@ -104,6 +128,7 @@ export function createGame(playerCount: number): GameState {
     phase: "playing",
     setDealScores: [],
     setAllMade: Array.from({ length: playerCount }, () => true),
+    dealHistory: [],
   };
 }
 
@@ -143,6 +168,24 @@ export function advanceToNextRound(state: GameState): GameState {
   // 2. Cumul des scores.
   let scores = state.scores.map((s, p) => s + roundScores[p]);
 
+  // 1bis. Historique : on enregistre le résultat brut de cette donne
+  // (score AVANT prime/effacement de fin de set, cf. DealResult).
+  // doubled/erased sont posés à false ici ; ils sont mis à jour plus
+  // bas, au moment du bonus de set (ÉTAPE C), pour la/les manche(s)
+  // concernée(s) du set qui se termine.
+  let dealHistory = [
+    ...state.dealHistory,
+    {
+      dealIndex: state.currentDealIndex,
+      cardsPerPlayer,
+      bids,
+      tricksWon: [...round.tricksWon],
+      scores: roundScores,
+      doubled: Array.from({ length: playerCount }, () => false),
+      erased: Array.from({ length: playerCount }, () => false),
+    },
+  ];
+
   // 3. Accumulateurs du set courant.
   let setDealScores = [...state.setDealScores, roundScores];
   let setAllMade = state.setAllMade.map(
@@ -156,14 +199,105 @@ export function advanceToNextRound(state: GameState): GameState {
     state.schedule[state.currentDealIndex + 1].setIndex !== deal.setIndex;
 
   if (setEnds) {
-    // Bonus de set : chaque joueur ayant réussi TOUTES ses enchères du
-    // set gagne son meilleur score sur une seule donne de ce set.
+    // ── Bonus de set (V2, règle finale) ───────────────────────────
+    // « Gagnant de prime » d'un set = joueur ayant réussi TOUTES ses
+    // enchères de TOUTES les donnes du set (setAllMade).
+    //
+    // ÉTAPE A — Doublement : chaque gagnant double sa meilleure manche
+    // du set. Ce score est déjà compté une fois dans `scores`
+    // (accumulé donne par donne) : l'ajouter une seconde fois revient
+    // à le doubler dans le total final. Égalité entre plusieurs donnes
+    // au même max ⇒ on retient la première (indice le plus bas), sans
+    // effet sur le total puisque seule la VALEUR compte.
+    //
+    // ÉTAPE B — Effacement : les cibles sont calculées sur les scores
+    // AVANT tout effacement (pas de cascade, pas de doublement gratuit
+    // entre gagnants). On ne cible QUE des NON-gagnants — les gagnants
+    // sont PROTÉGÉS, même entre eux. S'il y a N gagnants, on efface les
+    // N meilleures manches parmi les non-gagnants ayant la plus haute
+    // valeur (classement décroissant ; égalité ⇒ index le plus bas),
+    // chacune attribuée à un gagnant distinct (1er gagnant ↔ 1ère
+    // cible, etc. — l'attribution n'influe pas sur le résultat, seul le
+    // NOMBRE de cibles compte). S'il y a plus de gagnants que de
+    // non-gagnants, les gagnants en surplus n'effacent rien (un
+    // non-gagnant ne peut pas perdre deux manches).
+    //
+    // « Effacer » une manche : si son score est > 0, on le ramène à 0
+    // (on retire sa valeur du total cumulé). Si son score est <= 0
+    // (xisht), l'effacement n'a AUCUN EFFET — il ne doit jamais faire
+    // REMONTER le score d'un joueur.
+
+    // Pour chaque joueur : { value, dealIndex } de sa meilleure donne
+    // du set (première donne atteignant ce maximum).
+    const bestDeal = Array.from({ length: playerCount }, (_, p) => {
+      let value = setDealScores[0][p];
+      let dealIndex = 0;
+      for (let d = 1; d < setDealScores.length; d++) {
+        if (setDealScores[d][p] > value) {
+          value = setDealScores[d][p];
+          dealIndex = d;
+        }
+      }
+      return { value, dealIndex };
+    });
+
+    const winners: number[] = [];
+    const nonWinners: number[] = [];
     for (let p = 0; p < playerCount; p++) {
-      if (setAllMade[p]) {
-        const best = Math.max(...setDealScores.map((d) => d[p]));
-        scores[p] += best;
+      (setAllMade[p] ? winners : nonWinners).push(p);
+    }
+
+    // ÉTAPE A — Doublement. doubledBySeat associe à chaque donne (indice
+    // RELATIF au set) la liste des sièges doublés sur cette donne.
+    const doubledBySeat = new Map<number, number[]>();
+    for (const p of winners) {
+      scores[p] += bestDeal[p].value;
+      const idx = bestDeal[p].dealIndex;
+      doubledBySeat.set(idx, [...(doubledBySeat.get(idx) ?? []), p]);
+    }
+
+    // ÉTAPE B — Effacement : classement des non-gagnants par meilleure
+    // manche décroissante (égalité ⇒ index le plus bas), puis on efface
+    // les `winners.length` premiers de ce classement (si positifs).
+    const ranked = [...nonWinners].sort((a, b) => {
+      if (bestDeal[b].value !== bestDeal[a].value) {
+        return bestDeal[b].value - bestDeal[a].value;
+      }
+      return a - b;
+    });
+
+    // erasedBySeat associe à chaque donne (indice RELATIF au set) la
+    // liste des sièges effacés sur cette donne.
+    const targetCount = Math.min(winners.length, ranked.length);
+    const erasedBySeat = new Map<number, number[]>();
+    for (let i = 0; i < targetCount; i++) {
+      const target = ranked[i];
+      if (bestDeal[target].value > 0) {
+        scores[target] -= bestDeal[target].value;
+        const idx = bestDeal[target].dealIndex;
+        erasedBySeat.set(idx, [...(erasedBySeat.get(idx) ?? []), target]);
       }
     }
+
+    // ÉTAPE C — Marquage doubled/erased PAR SIÈGE dans dealHistory.
+    // bestDeal[p].dealIndex est un indice RELATIF au set courant (0-based
+    // dans setDealScores) ; on le convertit en indice ABSOLU dans
+    // dealHistory via setStartIndex.
+    const setStartIndex = dealHistory.length - setDealScores.length;
+    dealHistory = dealHistory.map((entry, idx) => {
+      const relativeIndex = idx - setStartIndex;
+      if (relativeIndex < 0 || relativeIndex >= setDealScores.length) {
+        return entry;
+      }
+      const doubledSeats = doubledBySeat.get(relativeIndex) ?? [];
+      const erasedSeats = erasedBySeat.get(relativeIndex) ?? [];
+      return {
+        ...entry,
+        doubled: entry.doubled.map((_, p) => doubledSeats.includes(p)),
+        erased: entry.erased.map((_, p) => erasedSeats.includes(p)),
+      };
+    });
+
     // Réinitialisation des accumulateurs pour le set suivant.
     setDealScores = [];
     setAllMade = Array.from({ length: playerCount }, () => true);
@@ -179,6 +313,7 @@ export function advanceToNextRound(state: GameState): GameState {
       scores,
       setDealScores,
       setAllMade,
+      dealHistory,
       dealerIndex: nextDealer,
       phase: "finished",
     };
@@ -197,9 +332,17 @@ export function advanceToNextRound(state: GameState): GameState {
     scores,
     setDealScores,
     setAllMade,
+    dealHistory,
     dealerIndex: nextDealer,
     currentDealIndex: state.currentDealIndex + 1,
-    round: nextRound,
+    round: {
+      ...nextRound,
+      // On conserve le dernier pli de la donne PRÉCÉDENTE pour que le
+      // client puisse encore l'afficher brièvement avant que la
+      // nouvelle donne ne démarre (cf. lastTrick / Tâche A).
+      lastTrick: round.lastTrick,
+      lastTrickWinner: round.lastTrickWinner,
+    },
   };
 }
 

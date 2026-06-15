@@ -44,6 +44,14 @@ export type NetworkGame = {
   // Emplacement du futur état de jeu (shared/game.ts). Reste null tant
   // que la partie n'a pas démarré (branché à l'objectif suivant).
   state: GameState | null;
+
+  // ── Timer de tour (15s, cf. shared/round.ts TURN_DURATION_MS) ──
+  // turnStartedAt : timestamp (Date.now()) du début du tour courant,
+  // envoyé dans PlayerView pour que le client affiche la barre.
+  // turnTimer : le setTimeout en cours (auto-jeu si non rejoué à temps),
+  // reprogrammé à chaque changement de currentPlayer (index.ts).
+  turnStartedAt: number;
+  turnTimer: ReturnType<typeof setTimeout> | null;
 };
 
 // Erreur métier du manager, avec un code exploitable côté réseau.
@@ -80,6 +88,8 @@ export class GameManager {
       players: [{ socketId, sessionId, pseudo, seat: 0 }],
       status: "waiting",
       state: null,
+      turnStartedAt: 0,
+      turnTimer: null,
     };
     this.games.set(gameId, game);
     this.socketToGame.set(socketId, gameId);

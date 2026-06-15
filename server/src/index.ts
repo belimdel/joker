@@ -8,6 +8,8 @@ import mime from "mime";
 import { GameManager, GameManagerError, NetworkGame } from "./GameManager";
 import { submitBid, submitCard } from "../../shared/game";
 import { buildPlayerView } from "../../shared/views";
+import { TURN_DURATION_MS } from "../../shared/round";
+import { pickAutoBid, pickAutoCard } from "../../shared/bot";
 import type {
   ClientToServerEvents,
   ServerToClientEvents,
@@ -57,9 +59,55 @@ function lobbyPayload(game: NetworkGame): LobbyUpdatePayload {
 function broadcastViews(game: NetworkGame): void {
   if (!game.state) return;
   for (const player of game.players) {
-    const view = buildPlayerView(game.state, player.seat);
+    const view = buildPlayerView(game.state, player.seat, game.turnStartedAt);
     io.to(player.socketId).emit("gameStateUpdate", view);
   }
+}
+
+// ─── Timer de tour (15s) + auto-jeu ──────────────────────────────
+// Le serveur fait autorité sur le temps : à chaque changement de
+// currentPlayer, on (re)programme un timeout de TURN_DURATION_MS. S'il
+// expire sans action humaine, on joue À LA PLACE du joueur via
+// placeBid/playCard (shared/bot.ts choisit un coup LÉGAL, mêmes
+// validations que pour un humain), puis on reprogramme le tour suivant.
+function clearTurnTimer(game: NetworkGame): void {
+  if (game.turnTimer) {
+    clearTimeout(game.turnTimer);
+    game.turnTimer = null;
+  }
+}
+
+function scheduleTurnTimer(game: NetworkGame): void {
+  clearTurnTimer(game);
+  if (!game.state || game.state.phase === "finished") return;
+
+  game.turnStartedAt = Date.now();
+  game.turnTimer = setTimeout(() => {
+    game.turnTimer = null;
+    // La partie a pu être supprimée entre-temps (tous les joueurs
+    // partis) : on arrête là, pas de reprogrammation infinie.
+    if (!manager.getGame(game.gameId)) return;
+    if (!game.state || game.state.phase === "finished") return;
+
+    const round = game.state.round;
+    const seat = round.currentPlayer;
+    try {
+      if (round.phase === "bidding") {
+        game.state = submitBid(game.state, seat, pickAutoBid(round));
+      } else if (round.phase === "playing") {
+        const { card, announce, declaredSuit } = pickAutoCard(round);
+        game.state = submitCard(game.state, seat, card, announce, declaredSuit);
+      }
+    } catch (e) {
+      console.error(
+        `⏱️ Auto-jeu échoué (partie ${game.gameId}, siège ${seat}) :`,
+        (e as Error).message
+      );
+    }
+
+    scheduleTurnTimer(game);
+    broadcastViews(game);
+  }, TURN_DURATION_MS);
 }
 
 // Transforme une exception en gameError ciblé (jamais de crash serveur).
@@ -93,11 +141,12 @@ io.on("connection", (socket) => {
     const { game, seat, pseudo } = reconnected;
     socket.join(game.gameId);
     socket.emit("sessionRestored", { gameId: game.gameId, seat, pseudo });
-    if (game.status === "waiting") {
-      socket.emit("lobbyUpdate", lobbyPayload(game));
-    }
+    // Toujours réémettre le lobby (même en partie en cours) : sans ça,
+    // le client garde lobby=null après un refresh et pseudoOf() retombe
+    // sur "Joueur N" pour tout le monde.
+    socket.emit("lobbyUpdate", lobbyPayload(game));
     if (game.state) {
-      socket.emit("gameStateUpdate", buildPlayerView(game.state, seat));
+      socket.emit("gameStateUpdate", buildPlayerView(game.state, seat, game.turnStartedAt));
     }
     console.log(`🔄 Reconnexion silencieuse : "${pseudo}" → ${game.gameId} (siège ${seat})`);
   }
@@ -161,6 +210,7 @@ io.on("connection", (socket) => {
       return;
     }
     io.to(game.gameId).emit("lobbyUpdate", lobbyPayload(game)); // statut → in-progress
+    scheduleTurnTimer(game);
     broadcastViews(game);
     console.log(`🚀 Partie ${game.gameId} démarrée.`);
   });
@@ -184,6 +234,7 @@ io.on("connection", (socket) => {
       socket.emit("gameError", toGameError(e)); // ciblé sur le seul fautif
       return;
     }
+    scheduleTurnTimer(game); // le tour change → on relance le décompte
     broadcastViews(game); // tous les écrans se resynchronisent
   });
 
@@ -207,6 +258,7 @@ io.on("connection", (socket) => {
       socket.emit("gameError", toGameError(e));
       return;
     }
+    scheduleTurnTimer(game); // le tour change → on relance le décompte
     broadcastViews(game);
   });
 

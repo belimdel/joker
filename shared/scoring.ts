@@ -25,9 +25,14 @@
 //   • « passe ratée » (enchère 0, gagne des plis) : contrat raté
 //     → 10 par pli. Ex. passe et gagne 2 → 20.
 //
+// Cas particulier avec branche dédiée :
+//   • « xisht » (enchère ≥ 1, mais 0 pli remporté) : pénalité fixe
+//     de -200, quel que soit le set. Remplace le calcul générique
+//     du contrat raté (qui donnerait tricksWon × 10 = 0).
+//
 // NB : le bonus de « set » (réussir toutes ses enchères sur un set)
-// et la variante « hist » (pénalité) ne sont PAS gérés ici : ce sont
-// des règles de niveau partie, traitées plus tard avec l'état global.
+// n'est PAS géré ici : c'est une règle de niveau partie, traitée
+// plus tard avec l'état global.
 //
 // Fonction pure : entrées → sortie, aucun effet de bord.
 export function computePlayerScore(
@@ -58,6 +63,13 @@ export function computePlayerScore(
   }
   if (tricksWon > cardsPerPlayer) {
     throw new Error(`tricksWon invalide : ${tricksWon} (max ${cardsPerPlayer})`);
+  }
+
+  // Xisht : enchère ≥ 1 mais aucun pli remporté → pénalité fixe.
+  // Doit être vérifié avant le cas « contrat réussi » et le cas
+  // général « contrat raté » pour ne pas être masqué par eux.
+  if (bid >= 1 && tricksWon === 0) {
+    return -200;
   }
 
   const contratReussi = tricksWon === bid;

@@ -50,6 +50,27 @@ console.log(
   computePlayerScore(4, 3, 4)
 );
 
+// ── Test 11 : xisht, enchère 2 mais 0 pli ──────────────────────
+// Enchère 2, gagne 0 → pénalité fixe xisht → -200.
+console.log(
+  "Test 11 (attendu -200) :",
+  computePlayerScore(2, 0, 9)
+);
+
+// ── Test 12 : xisht, enchère 1 mais 0 pli ──────────────────────
+// Enchère 1, gagne 0 → pénalité fixe xisht → -200.
+console.log(
+  "Test 12 (attendu -200) :",
+  computePlayerScore(1, 0, 9)
+);
+
+// ── Test 13 : passe réussie (0 / 0), PAS un xisht ──────────────
+// Enchère 0, gagne 0 → contrat réussi → 0×50 + 50 = 50.
+console.log(
+  "Test 13 (attendu 50) :",
+  computePlayerScore(0, 0, 9)
+);
+
 // ── Garde-fous « fail fast » : les appels invalides doivent LEVER ──
 
 // Test 8 : tricksWon > cardsPerPlayer → erreur.

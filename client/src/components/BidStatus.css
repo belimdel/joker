@@ -1,0 +1,38 @@
+/* ─── Statut « annoncé / gagné » d'un siège ─────────────────────── */
+.jk-bidstatus {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.3rem;
+  font-family: var(--font-display);
+  letter-spacing: 0.02em;
+  color: var(--text);
+}
+.jk-bidstatus.is-met {
+  color: var(--ok);
+}
+.jk-bidstatus.is-over {
+  color: var(--danger);
+}
+
+.jk-bidstatus__item {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1.05;
+}
+.jk-bidstatus__value {
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+.jk-bidstatus__label {
+  font-family: var(--font-body, inherit);
+  font-size: 0.55rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+}
+.jk-bidstatus__sep {
+  font-size: 0.85rem;
+  color: var(--text-dim);
+  align-self: center;
+}

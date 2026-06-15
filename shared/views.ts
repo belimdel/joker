@@ -1,7 +1,7 @@
 import { Card, Suit } from "./cards";
 import { PlayedCard } from "./trick";
-import { RoundPhase } from "./round";
-import { GamePhase, GameState } from "./game";
+import { RoundPhase, TURN_DURATION_MS } from "./round";
+import { DealResult, GamePhase, GameState } from "./game";
 
 // ─── La vue filtrée d'un joueur ─────────────────────────────────
 // SÉCURITÉ : le GameState complet contient les mains de TOUS les
@@ -34,9 +34,34 @@ export type PlayerView = {
   trickLeader: number;
   currentTrick: PlayedCard[]; // cartes déjà posées sur la table (publiques)
 
+  // Dernier pli COMPLET (4 cartes) et son gagnant : le serveur vide
+  // currentTrick juste après l'avoir diffusé, donc c'est ICI que le
+  // client retrouve le pli qui vient de se terminer pour l'afficher
+  // brièvement avant le suivant.
+  lastTrick: PlayedCard[];
+  lastTrickWinner: number | null;
+
+  // ── Timer de tour (autoritatif serveur) ──
+  // Le client calcule l'affichage (barre de progression) à partir de
+  // CES DEUX valeurs : `Date.now() - turnStartedAt` écoulé sur
+  // `turnDurationMs`. Robuste au lag (pas de "secondes restantes"
+  // envoyées en boucle). Si le délai expire côté serveur, le joueur
+  // dont c'est le tour joue automatiquement (cf. shared/bot.ts).
+  turnStartedAt: number; // Date.now() au début du tour courant
+  turnDurationMs: number; // toujours TURN_DURATION_MS (15000)
+
   // ── Cartes ──
   hand: Card[]; // MA main, en clair
   handCounts: number[]; // nombre de cartes par joueur (les autres = compte SEUL)
+
+  // ── Historique ──
+  // Une entrée par donne TERMINÉE (bids/tricksWon/score brut, plus
+  // doubled/erased pour la prime de set). Tout public — sert à
+  // afficher la matrice complète manche par manche.
+  // NB nommage : ce champ correspond à `GameState.dealHistory`
+  // (game.ts) — même type DealResult, juste un nom différent côté vue
+  // (déjà consommé par le client, cf. ScoreModal.tsx : ne pas renommer).
+  roundHistory: DealResult[];
 };
 
 // ─── La projection (fonction pure) ──────────────────────────────
@@ -47,7 +72,8 @@ export type PlayerView = {
 // l'exécution.
 export function buildPlayerView(
   state: GameState,
-  playerIndex: number
+  playerIndex: number,
+  turnStartedAt: number = Date.now()
 ): PlayerView {
   const round = state.round;
   const deal = state.schedule[state.currentDealIndex];
@@ -71,10 +97,22 @@ export function buildPlayerView(
     currentPlayer: round.currentPlayer,
     trickLeader: round.trickLeader,
     currentTrick: round.currentTrick.map((p) => ({ ...p })),
+    lastTrick: round.lastTrick.map((p) => ({ ...p })),
+    lastTrickWinner: round.lastTrickWinner,
+
+    turnStartedAt,
+    turnDurationMs: TURN_DURATION_MS,
 
     // Sa main en clair…
     hand: [...round.hands[playerIndex]],
     // …mais pour TOUS, seulement le compte (le contenu adverse ne sort pas).
     handCounts: round.hands.map((h) => h.length),
+
+    roundHistory: state.dealHistory.map((d) => ({
+      ...d,
+      bids: [...d.bids],
+      tricksWon: [...d.tricksWon],
+      scores: [...d.scores],
+    })),
   };
 }

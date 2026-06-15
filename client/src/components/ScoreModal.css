@@ -1,0 +1,152 @@
+/* ════════════════════════════════════════════════════════════════
+   Tableau de scores plein écran (overlay)
+   ════════════════════════════════════════════════════════════════ */
+
+.jk-scoretable {
+  position: fixed;
+  inset: 0;
+  z-index: 45;
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(180deg, var(--panel), var(--panel-2));
+  color: var(--text);
+}
+
+.jk-scoretable__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  padding: 0.9rem clamp(0.8rem, 3vw, 1.6rem);
+  border-bottom: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.jk-scoretable__scroll {
+  flex: 1;
+  overflow: auto;
+  padding: clamp(0.8rem, 3vw, 1.6rem);
+}
+
+.jk-scoretable__table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0.4rem;
+  table-layout: fixed;
+}
+
+.jk-scoretable__table th,
+.jk-scoretable__table td {
+  text-align: center;
+  padding: 0.6rem 0.4rem;
+  border-radius: 10px;
+}
+
+.jk-scoretable__table thead th {
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  letter-spacing: 0.04em;
+  color: var(--brass);
+  border: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.jk-scoretable__table thead th.is-me {
+  color: var(--brass-bright);
+  border-color: var(--line-strong);
+}
+
+.jk-scoretable__rowlabel {
+  text-align: left;
+  font-family: var(--font-display);
+  color: var(--text-dim);
+  white-space: nowrap;
+  width: 1%;
+}
+
+.jk-scoretable__cell {
+  font-family: var(--font-display);
+  border: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.22);
+  color: var(--text-dim);
+}
+.jk-scoretable__cell.is-ok {
+  background: rgba(118, 211, 154, 0.18);
+  border-color: var(--ok);
+  color: var(--ok);
+}
+.jk-scoretable__cell.is-pending {
+  background: rgba(0, 0, 0, 0.22);
+  color: var(--text);
+}
+.jk-scoretable__cell.is-xisht {
+  background: rgba(232, 118, 92, 0.18);
+  border-color: var(--danger);
+  color: var(--danger);
+}
+.jk-scoretable__cell.is-empty {
+  font-style: italic;
+}
+.jk-scoretable__cellpoints {
+  display: block;
+  font-size: 1rem;
+  font-weight: 700;
+}
+.jk-scoretable__cellpoints.is-erased {
+  text-decoration: line-through;
+  opacity: 0.6;
+}
+.jk-scoretable__cellratio {
+  display: block;
+  margin-top: 0.1rem;
+  font-size: 0.68rem;
+  color: var(--text-dim);
+}
+.jk-scoretable__cell.is-ok .jk-scoretable__cellratio {
+  color: var(--ok);
+  opacity: 0.85;
+}
+.jk-scoretable__cell.is-xisht .jk-scoretable__cellratio {
+  color: var(--danger);
+  opacity: 0.85;
+}
+.jk-scoretable__badge--double {
+  display: inline-block;
+  margin-left: 0.25rem;
+  padding: 0 0.25rem;
+  border-radius: 4px;
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: var(--panel);
+  background: var(--brass-bright);
+  vertical-align: middle;
+}
+
+.jk-scoretable__total {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--brass-bright);
+  border: 1px solid var(--brass-bright);
+  background: rgba(216, 177, 96, 0.12);
+}
+
+.jk-scoretable__note {
+  text-align: center;
+  padding: 0.6rem 1rem 1rem;
+  color: var(--text-dim);
+  font-style: italic;
+}
+
+@media (max-width: 480px) {
+  .jk-scoretable__table {
+    border-spacing: 0.25rem;
+  }
+  .jk-scoretable__table th,
+  .jk-scoretable__table td {
+    font-size: 0.78rem;
+    padding: 0.4rem 0.2rem;
+  }
+}

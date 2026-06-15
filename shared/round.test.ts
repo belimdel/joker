@@ -16,6 +16,8 @@ check("Phase initiale", s.phase, "bidding");
 check("Atout", s.trumpSuit, "spades");
 check("Premier à parler (gauche du donneur)", s.currentPlayer, 1);
 check("Mains (tailles)", s.hands.map((h) => h.length), [1, 1, 1, 1]);
+check("lastTrick initial vide", s.lastTrick, []);
+check("lastTrickWinner initial = null", s.lastTrickWinner, null);
 
 // ── Les enchères (ordre : 1, 2, 3, puis le donneur 0) ──
 s = placeBid(s, 1, 0);
@@ -43,6 +45,14 @@ check(
   1
 );
 check("Mains vidées", s.hands.map((h) => h.length), [0, 0, 0, 0]);
+check("lastTrick = le pli complet (4 cartes)", s.lastTrick, [
+  { playerIndex: 1, card: c("spades", "8") },
+  { playerIndex: 2, card: c("spades", "9") },
+  { playerIndex: 3, card: c("spades", "10") },
+  { playerIndex: 0, card: c("spades", "7") },
+]);
+check("lastTrickWinner = joueur 3 (10♠)", s.lastTrickWinner, 3);
+check("currentTrick vidé après le pli", s.currentTrick, []);
 
 console.log("\n══════ Manche à 2 cartes (4 joueurs, donneur 0) ══════");
 
@@ -71,6 +81,13 @@ check("Après pli 1, phase", t.phase, "playing");
 check("Après pli 1, plis gagnés", t.tricksWon, [0, 0, 1, 0]);
 check("Gagnant du pli 1 mène le pli 2", t.currentPlayer, 2);
 check("Pli en cours vidé", t.currentTrick.length, 0);
+check("lastTrick (pli 1) = le pli complet (4 cartes)", t.lastTrick, [
+  { playerIndex: 1, card: c("spades", "8") },
+  { playerIndex: 2, card: c("spades", "K") },
+  { playerIndex: 3, card: c("spades", "10") },
+  { playerIndex: 0, card: c("spades", "J") },
+]);
+check("lastTrickWinner (pli 1) = joueur 2 (R♠)", t.lastTrickWinner, 2);
 
 // ── Pli 2 (ordre 2,3,0,1) : A♠ est le plus haut → joueur 3 gagne ──
 t = playCard(t, 2, c("spades", "9"));
@@ -85,6 +102,13 @@ check(
   t.tricksWon.reduce((a, b) => a + b, 0),
   2
 );
+check("lastTrick (pli 2) = le pli complet (4 cartes)", t.lastTrick, [
+  { playerIndex: 2, card: c("spades", "9") },
+  { playerIndex: 3, card: c("spades", "A") },
+  { playerIndex: 0, card: c("spades", "7") },
+  { playerIndex: 1, card: c("spades", "Q") },
+]);
+check("lastTrickWinner (pli 2) = joueur 3 (A♠)", t.lastTrickWinner, 3);
 
 console.log("\n══════ Chemins d'erreur (fail fast) ══════");
 
@@ -116,6 +140,8 @@ const renonceState: RoundState = {
   currentPlayer: 0,
   trickLeader: 0,
   currentTrick: [],
+  lastTrick: [],
+  lastTrickWinner: null,
 };
 const afterLead = playCard(renonceState, 0, c("hearts", "8")); // p0 mène cœur
 expectThrow("Renonce (couleur non suivie)", () =>
