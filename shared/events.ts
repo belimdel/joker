@@ -62,6 +62,12 @@ export type PlayCardPayload = {
   declaredSuit?: Suit | null;
 };
 
+// Choisir l'atout (manches à 9 cartes, phase "choosing-trump").
+// suit = null → on passe (manche SANS ATOUT).
+export type ChooseTrumpPayload = {
+  suit: Suit | null;
+};
+
 // Codes d'erreur réseau (union fermée → exhaustivité vérifiable).
 export type GameErrorCode =
   | "GAME_NOT_FOUND"
@@ -93,6 +99,7 @@ export interface ClientToServerEvents {
   startGame: () => void; // démarré par le joueur du siège 0
   placeBid: (payload: PlaceBidPayload) => void;
   playCard: (payload: PlayCardPayload) => void;
+  chooseTrump: (payload: ChooseTrumpPayload) => void;
 }
 
 // Événements émis PAR le serveur, reçus PAR le client.

@@ -10,6 +10,14 @@ import type { RoundState } from "./round";
 // humain (placeBid/playCard revalident de toute façon). Fonctions
 // pures : aucun accès réseau ni horloge ici.
 
+// ─── Choix d'atout automatique (manches à 9 cartes) ──────────────
+// Phase "choosing-trump" : stratégie par défaut = PASSER (suit = null,
+// manche sans atout). Le serveur l'utilise au timeout de cette phase,
+// via le même chemin chooseTrump qu'un choix humain.
+export function pickAutoTrumpChoice(): Suit | null {
+  return null;
+}
+
 // ─── Enchère automatique ─────────────────────────────────────────
 // On choisit la PLUS PETITE enchère autorisée (la moins engageante).
 // allowedBids() n'est jamais vide : cardsPerPlayer ≥ 1, et la

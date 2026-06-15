@@ -26,12 +26,15 @@ export type PlayerView = {
   scores: number[]; // scores cumulés (publics)
 
   // ── Niveau manche (tout public sauf les mains) ──
-  roundPhase: RoundPhase; // "bidding" | "playing" | "finished"
+  roundPhase: RoundPhase; // "choosing-trump" | "bidding" | "playing" | "finished"
   trumpSuit: Suit | null;
-  trumpCard: Card | null; // la carte d'atout est RÉVÉLÉE à tous
+  trumpCard: Card | null; // la carte d'atout est RÉVÉLÉE à tous (null sur les manches à 9 cartes)
   bids: (number | null)[]; // enchères de tous (publiques)
   tricksWon: number[]; // plis gagnés de tous (publics)
-  currentPlayer: number; // à qui d'enchérir / de jouer
+  // À qui d'enchérir / de jouer / de choisir l'atout. En phase
+  // "choosing-trump", c'est le SIÈGE DU DÉCIDEUR : information publique
+  // et légitime (tout le monde sait qui doit choisir, pas CE QU'IL voit).
+  currentPlayer: number;
   trickLeader: number;
   currentTrick: PlayedCard[]; // cartes déjà posées sur la table (publiques)
 
@@ -54,6 +57,13 @@ export type PlayerView = {
   // ── Cartes ──
   hand: Card[]; // MA main, en clair
   handCounts: number[]; // nombre de cartes par joueur (les autres = compte SEUL)
+
+  // Manches à 9 cartes, phase "choosing-trump" UNIQUEMENT : les 3
+  // premières cartes du décideur (round.currentPlayer), visibles PAR LUI
+  // SEUL — anti-triche : null pour tous les autres joueurs, et null pour
+  // le décideur lui-même hors de cette phase. `pendingDeck` (le reste du
+  // paquet) n'apparaît JAMAIS dans une PlayerView, quel que soit `you`.
+  trumpChoiceHand: Card[] | null;
 
   // ── Historique ──
   // Une entrée par donne TERMINÉE (bids/tricksWon/score brut, plus
@@ -108,6 +118,13 @@ export function buildPlayerView(
     hand: [...round.hands[playerIndex]],
     // …mais pour TOUS, seulement le compte (le contenu adverse ne sort pas).
     handCounts: round.hands.map((h) => h.length),
+
+    // Choix de l'atout (manches à 9) : SEUL le décideur (you === currentPlayer
+    // en phase "choosing-trump") reçoit ses 3 cartes ; tous les autres → null.
+    trumpChoiceHand:
+      round.phase === "choosing-trump" && playerIndex === round.currentPlayer
+        ? [...round.hands[playerIndex]]
+        : null,
 
     roundHistory: state.dealHistory.map((d) => ({
       ...d,

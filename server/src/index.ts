@@ -8,8 +8,8 @@ import mime from "mime";
 import { GameManager, GameManagerError, NetworkGame } from "./GameManager";
 import { submitBid, submitCard } from "../../shared/game";
 import { buildPlayerView } from "../../shared/views";
-import { TURN_DURATION_MS } from "../../shared/round";
-import { pickAutoBid, pickAutoCard } from "../../shared/bot";
+import { TURN_DURATION_MS, chooseTrump } from "../../shared/round";
+import { pickAutoBid, pickAutoCard, pickAutoTrumpChoice } from "../../shared/bot";
 import type {
   ClientToServerEvents,
   ServerToClientEvents,
@@ -92,7 +92,11 @@ function scheduleTurnTimer(game: NetworkGame): void {
     const round = game.state.round;
     const seat = round.currentPlayer;
     try {
-      if (round.phase === "bidding") {
+      if (round.phase === "choosing-trump") {
+        // Le décideur n'a pas choisi à temps : on PASSE pour lui (sans
+        // atout), via le même chemin chooseTrump qu'un choix humain.
+        game.state = { ...game.state, round: chooseTrump(round, seat, pickAutoTrumpChoice()) };
+      } else if (round.phase === "bidding") {
         game.state = submitBid(game.state, seat, pickAutoBid(round));
       } else if (round.phase === "playing") {
         const { card, announce, declaredSuit } = pickAutoCard(round);
@@ -254,6 +258,30 @@ io.on("connection", (socket) => {
       // submitCard valide, gère la fin de pli/manche, et enchaîne la
       // donne suivante (advanceToNextRound) automatiquement si besoin.
       game.state = submitCard(game.state, seat, card, announce, declaredSuit);
+    } catch (e) {
+      socket.emit("gameError", toGameError(e));
+      return;
+    }
+    scheduleTurnTimer(game); // le tour change → on relance le décompte
+    broadcastViews(game);
+  });
+
+  // ── Choisir l'atout (manches à 9 cartes, phase "choosing-trump") ──
+  socket.on("chooseTrump", ({ suit }) => {
+    const game = manager.getGameBySocket(socket.id);
+    if (!game || !game.state) {
+      socket.emit("gameError", { code: "NOT_STARTED", message: "La partie n'a pas démarré." });
+      return;
+    }
+    const seat = manager.seatOf(game, socket.id);
+    if (seat === undefined) {
+      socket.emit("gameError", { code: "GAME_NOT_FOUND", message: "Joueur introuvable dans la partie." });
+      return;
+    }
+    try {
+      // chooseTrump (shared/round.ts) valide la phase et le tour : seul le
+      // décideur (round.currentPlayer en phase "choosing-trump") peut agir.
+      game.state = { ...game.state, round: chooseTrump(game.state.round, seat, suit) };
     } catch (e) {
       socket.emit("gameError", toGameError(e));
       return;
