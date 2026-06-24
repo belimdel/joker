@@ -132,6 +132,14 @@ function sessionIdOf(socket: { handshake: { auth: Record<string, unknown> } }): 
   return typeof raw === "string" && raw.length > 0 ? raw : randomUUID();
 }
 
+// Le sessionId fourni par le client (handshake.auth) était-il réellement
+// présent ? Sert à distinguer une première visite (pas de sessionId : rien
+// à signaler) d'une session orpheline (sessionId fourni mais inconnu).
+function hasClientSessionId(socket: { handshake: { auth: Record<string, unknown> } }): boolean {
+  const raw = socket.handshake.auth?.sessionId;
+  return typeof raw === "string" && raw.length > 0;
+}
+
 io.on("connection", (socket) => {
   console.log(`✅ Connecté : ${socket.id}`);
 
@@ -153,6 +161,13 @@ io.on("connection", (socket) => {
       socket.emit("gameStateUpdate", buildPlayerView(game.state, seat, game.turnStartedAt));
     }
     console.log(`🔄 Reconnexion silencieuse : "${pseudo}" → ${game.gameId} (siège ${seat})`);
+  } else if (hasClientSessionId(socket)) {
+    // Le client a fourni un sessionId, mais il ne correspond à aucune
+    // partie connue (ex. redémarrage serveur) : on prévient le client
+    // qu'il doit purger sa session et revenir à l'accueil. Un nouveau
+    // joueur sans sessionId ne déclenche jamais ce cas.
+    socket.emit("sessionExpired");
+    console.log(`⚠️ Session orpheline ignorée : ${sessionId}`);
   }
 
   socket.emit("welcome", { message: "Connecté au serveur Joker !" });

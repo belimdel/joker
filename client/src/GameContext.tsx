@@ -7,7 +7,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { socket } from "./socket";
+import { socket, clearSessionId } from "./socket";
 import type { Card, Suit } from "@shared/cards";
 import type { JokerAnnounce } from "@shared/trick";
 import type {
@@ -78,6 +78,19 @@ export function GameProvider({ children }: { children: ReactNode }) {
       setIsHost(seat === 0);
       setMyPseudo(pseudo);
     };
+    // Session orpheline (ex. redémarrage serveur) : la partie n'existe plus
+    // côté serveur. On purge la session locale et on revient à l'accueil
+    // avec un message sobre (réaffiché via le bandeau d'erreur de Home).
+    const onSessionExpired = () => {
+      clearSessionId();
+      setLobby(null);
+      setView(null);
+      setIsHost(false);
+      setError({
+        code: "SESSION_EXPIRED",
+        message: "Cette partie a expiré, recrée-en une.",
+      });
+    };
 
     socket.on("connect", onConnect);
     socket.on("disconnect", onDisconnect);
@@ -88,6 +101,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     socket.on("gameStateUpdate", onState);
     socket.on("gameError", onError);
     socket.on("sessionRestored", onSessionRestored);
+    socket.on("sessionExpired", onSessionExpired);
 
     return () => {
       socket.off("connect", onConnect);
@@ -99,6 +113,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       socket.off("gameStateUpdate", onState);
       socket.off("gameError", onError);
       socket.off("sessionRestored", onSessionRestored);
+      socket.off("sessionExpired", onSessionExpired);
     };
   }, []);
 

@@ -27,6 +27,12 @@ function getOrCreateSessionId(): string {
   return id;
 }
 
+// Purge la session locale (ex. sessionExpired) : le prochain connect()
+// en fabriquera une nouvelle via getOrCreateSessionId.
+export function clearSessionId(): void {
+  localStorage.removeItem(SESSION_STORAGE_KEY);
+}
+
 export const socket: AppSocket = io(URL, {
   autoConnect: true,
   auth: { sessionId: getOrCreateSessionId() },

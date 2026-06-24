@@ -75,7 +75,10 @@ export type GameErrorCode =
   | "INVALID_PAYLOAD"
   | "NOT_READY" // pas assez de joueurs pour démarrer
   | "NOT_STARTED" // action de jeu sur une partie non démarrée
-  | "ILLEGAL_MOVE"; // coup refusé par la logique (hors-tour, renonce, etc.)
+  | "ILLEGAL_MOVE" // coup refusé par la logique (hors-tour, renonce, etc.)
+  | "SESSION_EXPIRED"; // usage CLIENT uniquement, jamais émis par le serveur en
+  // gameError : sert à réafficher le message "session expirée" via l'écran
+  // d'accueil après réception de l'event réseau dédié sessionExpired.
 
 // Erreur renvoyée au SEUL demandeur.
 export type GameErrorPayload = {
@@ -112,4 +115,7 @@ export interface ServerToClientEvents {
   gameStateUpdate: (view: PlayerView) => void;
   // Reconnexion silencieuse après un refresh (emit ciblé par socket).
   sessionRestored: (payload: SessionRestoredPayload) => void;
+  // Session orpheline (sessionId fourni mais inconnu du serveur) : le
+  // client doit purger sa session locale et revenir à l'accueil.
+  sessionExpired: () => void;
 }
