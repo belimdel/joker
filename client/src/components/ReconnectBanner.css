@@ -1,0 +1,18 @@
+/* ─── Bandeau de reconnexion réseau ──────────────────────────────── */
+.jk-reconnect-banner {
+  position: fixed;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  padding: 0.35rem 1rem;
+  font-family: var(--font-body, inherit);
+  font-size: 0.8rem;
+  letter-spacing: 0.02em;
+  color: var(--text);
+  background: var(--surface, #222);
+  border: 1px solid var(--text-dim, #555);
+  border-top: none;
+  border-radius: 0 0 0.4rem 0.4rem;
+  pointer-events: none;
+}

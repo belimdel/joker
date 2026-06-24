@@ -2,6 +2,7 @@ import { GameProvider, useGame } from "./GameContext";
 import { Home } from "./screens/Home";
 import { Lobby } from "./screens/Lobby";
 import { Board } from "./screens/Board";
+import { ReconnectBanner } from "./components/ReconnectBanner";
 
 // Routeur d'écran piloté UNIQUEMENT par l'état réseau (le serveur fait foi) :
 //   - une PlayerView reçue → on est en partie → plateau ;
@@ -17,6 +18,7 @@ function Screen() {
 export default function App() {
   return (
     <GameProvider>
+      <ReconnectBanner />
       <div className="jk-screen">
         <Screen />
       </div>

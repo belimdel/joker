@@ -20,8 +20,11 @@ import type { PlayerView } from "@shared/views";
 // ─── État réseau exposé à toute l'app ───────────────────────────
 // Le front ne tient AUCUNE logique de jeu : il garde la dernière
 // PlayerView reçue, l'état du lobby, et les erreurs. Le serveur fait foi.
+export type ConnectionStatus = "connected" | "reconnecting" | "disconnected";
+
 type GameContextValue = {
   connected: boolean;
+  connectionStatus: ConnectionStatus;
   lobby: LobbyUpdatePayload | null;
   view: PlayerView | null;
   error: GameErrorPayload | null;
@@ -42,6 +45,9 @@ const GameContext = createContext<GameContextValue | null>(null);
 
 export function GameProvider({ children }: { children: ReactNode }) {
   const [connected, setConnected] = useState(socket.connected);
+  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>(
+    socket.connected ? "connected" : "disconnected"
+  );
   const [lobby, setLobby] = useState<LobbyUpdatePayload | null>(null);
   const [view, setView] = useState<PlayerView | null>(null);
   const [error, setError] = useState<GameErrorPayload | null>(null);
@@ -50,8 +56,18 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
   // Abonnement UNIQUE aux événements serveur (nettoyé au démontage).
   useEffect(() => {
-    const onConnect = () => setConnected(true);
-    const onDisconnect = () => setConnected(false);
+    const onConnect = () => {
+      setConnected(true);
+      setConnectionStatus("connected");
+    };
+    const onDisconnect = () => {
+      setConnected(false);
+      setConnectionStatus("disconnected");
+    };
+    // Les events de reconnexion (tentatives, succès, échec) sont émis par le
+    // Manager (socket.io), pas par le Socket lui-même.
+    const onReconnectAttempt = () => setConnectionStatus("reconnecting");
+    const onReconnectFailed = () => setConnectionStatus("disconnected");
     const onCreated = () => setIsHost(true); // seul le créateur reçoit gameCreated
     const onLobby = (p: LobbyUpdatePayload) => setLobby(p);
     const onState = (v: PlayerView) => setView(v);
@@ -65,6 +81,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
     socket.on("connect", onConnect);
     socket.on("disconnect", onDisconnect);
+    socket.io.on("reconnect_attempt", onReconnectAttempt);
+    socket.io.on("reconnect_failed", onReconnectFailed);
     socket.on("gameCreated", onCreated);
     socket.on("lobbyUpdate", onLobby);
     socket.on("gameStateUpdate", onState);
@@ -74,6 +92,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
     return () => {
       socket.off("connect", onConnect);
       socket.off("disconnect", onDisconnect);
+      socket.io.off("reconnect_attempt", onReconnectAttempt);
+      socket.io.off("reconnect_failed", onReconnectFailed);
       socket.off("gameCreated", onCreated);
       socket.off("lobbyUpdate", onLobby);
       socket.off("gameStateUpdate", onState);
@@ -133,6 +153,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const value = useMemo<GameContextValue>(
     () => ({
       connected,
+      connectionStatus,
       lobby,
       view,
       error,
@@ -147,7 +168,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       clearError,
       leave,
     }),
-    [connected, lobby, view, error, isHost, myPseudo, createGame, joinGame, startGame, placeBid, playCard, chooseTrump, clearError, leave]
+    [connected, connectionStatus, lobby, view, error, isHost, myPseudo, createGame, joinGame, startGame, placeBid, playCard, chooseTrump, clearError, leave]
   );
 
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>;
