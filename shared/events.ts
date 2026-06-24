@@ -75,10 +75,7 @@ export type GameErrorCode =
   | "INVALID_PAYLOAD"
   | "NOT_READY" // pas assez de joueurs pour démarrer
   | "NOT_STARTED" // action de jeu sur une partie non démarrée
-  | "ILLEGAL_MOVE" // coup refusé par la logique (hors-tour, renonce, etc.)
-  | "SESSION_EXPIRED"; // usage CLIENT uniquement, jamais émis par le serveur en
-  // gameError : sert à réafficher le message "session expirée" via l'écran
-  // d'accueil après réception de l'event réseau dédié sessionExpired.
+  | "ILLEGAL_MOVE"; // coup refusé par la logique (hors-tour, renonce, etc.)
 
 // Erreur renvoyée au SEUL demandeur.
 export type GameErrorPayload = {

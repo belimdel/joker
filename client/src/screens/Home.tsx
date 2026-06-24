@@ -3,7 +3,7 @@ import { useGame } from "../GameContext";
 import "./screens.css";
 
 export function Home() {
-  const { createGame, joinGame, error, connected } = useGame();
+  const { createGame, joinGame, error, notice, connected } = useGame();
   const [mode, setMode] = useState<"create" | "join">("create");
   const [pseudo, setPseudo] = useState("");
   const [code, setCode] = useState("");
@@ -61,6 +61,19 @@ export function Home() {
                 onChange={(e) => setCode(e.target.value.toUpperCase())}
                 placeholder="ABCD"
               />
+            </div>
+          )}
+
+          {notice && (
+            <div
+              className="jk-error"
+              style={{
+                background: "rgba(123, 158, 232, 0.14)",
+                borderColor: "rgba(123, 158, 232, 0.5)",
+                color: "#d9e4ff",
+              }}
+            >
+              ℹ {notice}
             </div>
           )}
 

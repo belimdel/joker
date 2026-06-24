@@ -28,6 +28,7 @@ type GameContextValue = {
   lobby: LobbyUpdatePayload | null;
   view: PlayerView | null;
   error: GameErrorPayload | null;
+  notice: string | null; // message neutre (non-erreur), ex. session expirée
   isHost: boolean; // ai-je créé la partie (siège 0) ?
   myPseudo: string;
 
@@ -38,6 +39,7 @@ type GameContextValue = {
   playCard: (card: Card, announce?: JokerAnnounce, declaredSuit?: Suit | null) => void;
   chooseTrump: (suit: Suit | null) => void;
   clearError: () => void;
+  clearNotice: () => void;
   leave: () => void;
 };
 
@@ -51,6 +53,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const [lobby, setLobby] = useState<LobbyUpdatePayload | null>(null);
   const [view, setView] = useState<PlayerView | null>(null);
   const [error, setError] = useState<GameErrorPayload | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [isHost, setIsHost] = useState(false);
   const [myPseudo, setMyPseudo] = useState("");
 
@@ -86,10 +89,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       setLobby(null);
       setView(null);
       setIsHost(false);
-      setError({
-        code: "SESSION_EXPIRED",
-        message: "Cette partie a expiré, recrée-en une.",
-      });
+      setNotice("Cette partie a expiré, recrée-en une.");
     };
 
     socket.on("connect", onConnect);
@@ -119,29 +119,34 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
   const createGame = useCallback((pseudo: string) => {
     setError(null);
+    setNotice(null);
     setMyPseudo(pseudo);
     socket.emit("createGame", { pseudo });
   }, []);
 
   const joinGame = useCallback((gameId: string, pseudo: string) => {
     setError(null);
+    setNotice(null);
     setMyPseudo(pseudo);
     socket.emit("joinGame", { gameId, pseudo });
   }, []);
 
   const startGame = useCallback(() => {
     setError(null);
+    setNotice(null);
     socket.emit("startGame");
   }, []);
 
   const placeBid = useCallback((bid: number) => {
     setError(null);
+    setNotice(null);
     socket.emit("placeBid", { bid });
   }, []);
 
   const playCard = useCallback(
     (card: Card, announce?: JokerAnnounce, declaredSuit?: Suit | null) => {
       setError(null);
+      setNotice(null);
       socket.emit("playCard", { card, announce, declaredSuit });
     },
     []
@@ -149,10 +154,12 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
   const chooseTrump = useCallback((suit: Suit | null) => {
     setError(null);
+    setNotice(null);
     socket.emit("chooseTrump", { suit });
   }, []);
 
   const clearError = useCallback(() => setError(null), []);
+  const clearNotice = useCallback(() => setNotice(null), []);
 
   // Quitter : on coupe puis on rouvre la connexion → le serveur nous
   // retire de la partie (disconnect), et on repart d'un écran propre.
@@ -160,6 +167,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     setLobby(null);
     setView(null);
     setError(null);
+    setNotice(null);
     setIsHost(false);
     socket.disconnect();
     socket.connect();
@@ -172,6 +180,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       lobby,
       view,
       error,
+      notice,
       isHost,
       myPseudo,
       createGame,
@@ -181,9 +190,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
       playCard,
       chooseTrump,
       clearError,
+      clearNotice,
       leave,
     }),
-    [connected, connectionStatus, lobby, view, error, isHost, myPseudo, createGame, joinGame, startGame, placeBid, playCard, chooseTrump, clearError, leave]
+    [connected, connectionStatus, lobby, view, error, notice, isHost, myPseudo, createGame, joinGame, startGame, placeBid, playCard, chooseTrump, clearError, clearNotice, leave]
   );
 
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>;
