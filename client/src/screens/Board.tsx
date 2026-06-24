@@ -379,12 +379,16 @@ export function Board() {
             />
           )}
 
-          <Hand
-            view={view}
-            isMyTurn={isMyTurn}
-            onPlay={onPlay}
-            pendingKey={pendingJoker ? cardKey(pendingJoker) : null}
-          />
+          {/* Masquée pendant choosing-trump pour le décideur : l'overlay
+              montre déjà les 3 cartes, inutile de les doubler en bas. */}
+          {view.trumpChoiceHand === null && (
+            <Hand
+              view={view}
+              isMyTurn={isMyTurn}
+              onPlay={onPlay}
+              pendingKey={pendingJoker ? cardKey(pendingJoker) : null}
+            />
+          )}
         </div>
       </div>
 

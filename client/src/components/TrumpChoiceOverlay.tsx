@@ -1,6 +1,6 @@
 import type { Card, Suit } from "@shared/cards";
 import { PlayingCard } from "./PlayingCard";
-import { socket } from "../socket";
+import { useGame } from "../GameContext";
 
 // Couleurs d'atout proposées (mêmes glyphes que JokerModal).
 const SUIT_META: Record<Suit, { glyph: string; name: string; red: boolean }> = {
@@ -23,9 +23,9 @@ export type TrumpChoiceOverlayProps = {
 // ─── Overlay de choix de l'atout (manches à 9 cartes) ────────────
 // Affiché UNIQUEMENT pendant ma phase "choosing-trump" (trumpChoiceHand
 // non-null ⇔ c'est mon tour, cf. Board). Le client ne valide rien : il
-// se contente d'émettre l'intention, le serveur fait autorité.
+// se contente d'émettre l'intention via le contexte, le serveur fait autorité.
 export function TrumpChoiceOverlay({ hand }: TrumpChoiceOverlayProps) {
-  const choose = (suit: Suit | null) => socket.emit("chooseTrump", { suit });
+  const { chooseTrump } = useGame();
 
   return (
     <div
@@ -52,7 +52,7 @@ export function TrumpChoiceOverlay({ hand }: TrumpChoiceOverlayProps) {
                 type="button"
                 key={s}
                 className={`jk-btn jk-modal__suit ${SUIT_META[s].red ? "is-red" : ""}`}
-                onClick={() => choose(s)}
+                onClick={() => chooseTrump(s)}
                 aria-label={SUIT_META[s].name}
               >
                 {SUIT_META[s].glyph}
@@ -62,7 +62,7 @@ export function TrumpChoiceOverlay({ hand }: TrumpChoiceOverlayProps) {
         </div>
 
         <div className="jk-modal__actions">
-          <button type="button" className="jk-btn jk-btn--ghost" onClick={() => choose(null)}>
+          <button type="button" className="jk-btn jk-btn--ghost" onClick={() => chooseTrump(null)}>
             Passer (sans atout)
           </button>
         </div>

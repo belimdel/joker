@@ -33,6 +33,7 @@ type GameContextValue = {
   startGame: () => void;
   placeBid: (bid: number) => void;
   playCard: (card: Card, announce?: JokerAnnounce, declaredSuit?: Suit | null) => void;
+  chooseTrump: (suit: Suit | null) => void;
   clearError: () => void;
   leave: () => void;
 };
@@ -111,6 +112,11 @@ export function GameProvider({ children }: { children: ReactNode }) {
     []
   );
 
+  const chooseTrump = useCallback((suit: Suit | null) => {
+    setError(null);
+    socket.emit("chooseTrump", { suit });
+  }, []);
+
   const clearError = useCallback(() => setError(null), []);
 
   // Quitter : on coupe puis on rouvre la connexion → le serveur nous
@@ -137,10 +143,11 @@ export function GameProvider({ children }: { children: ReactNode }) {
       startGame,
       placeBid,
       playCard,
+      chooseTrump,
       clearError,
       leave,
     }),
-    [connected, lobby, view, error, isHost, myPseudo, createGame, joinGame, startGame, placeBid, playCard, clearError, leave]
+    [connected, lobby, view, error, isHost, myPseudo, createGame, joinGame, startGame, placeBid, playCard, chooseTrump, clearError, leave]
   );
 
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>;
