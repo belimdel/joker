@@ -1,3 +1,4 @@
+import { randomUUID } from "crypto";
 import { createGame, GameState } from "../../shared/game";
 import type {
   GameStatus,
@@ -21,6 +22,10 @@ export type NetworkPlayer = {
   sessionId: string;
   pseudo: string;
   seat: number; // 0-3
+  // Siège occupé par un bot (mode "partie solo de test") : pas de socket
+  // réel, jamais indexé dans socketToGame/sessionToGame, ne se déconnecte
+  // jamais. Absent (undefined) pour un joueur humain.
+  isBot?: boolean;
 };
 
 // Résultat d'une suppression différée (grace period écoulée) ou immédiate.
@@ -231,6 +236,27 @@ export class GameManager {
     }
     game.state = createGame(MAX_PLAYERS);
     game.status = "in-progress";
+  }
+
+  // ── Compléter les sièges libres avec des bots (mode solo de test) ──
+  // Les bots occupent les sièges restants jusqu'à MAX_PLAYERS, avec un
+  // socketId/sessionId fictif (jamais indexé dans les maps du manager :
+  // aucune connexion réelle, donc aucune déconnexion à gérer pour eux).
+  // startGame() n'a ensuite besoin d'aucune modification : il voit
+  // MAX_PLAYERS joueurs et démarre normalement.
+  addBotPlayers(game: NetworkGame): void {
+    let botNumber = 1;
+    for (let seat = 0; seat < MAX_PLAYERS; seat++) {
+      if (game.players.some((p) => p.seat === seat)) continue;
+      game.players.push({
+        socketId: `bot-${randomUUID()}`,
+        sessionId: `bot-${randomUUID()}`,
+        pseudo: `Bot ${botNumber}`,
+        seat,
+        isBot: true,
+      });
+      botNumber++;
+    }
   }
 
   // Vue publique d'une partie (pour le payload réseau), triée par siège.

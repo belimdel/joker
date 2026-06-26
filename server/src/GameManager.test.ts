@@ -189,3 +189,40 @@ m10.handleDisconnect("inconnu", () => {
   calledForUnknown = true;
 });
 check("Aucun callback pour un socket inconnu", calledForUnknown, false);
+
+console.log("\n══════ addBotPlayers : mode solo de test ══════");
+const m11 = new GameManager();
+const r11 = m11.createGame("Solo", "sock-solo", "sess-solo11");
+m11.addBotPlayers(r11);
+check("4 sièges occupés après ajout des bots", r11.players.length, 4);
+check(
+  "Sièges 1,2,3 occupés par des bots",
+  r11.players.filter((p) => p.isBot).map((p) => p.seat),
+  [1, 2, 3]
+);
+check(
+  "Pseudos des bots",
+  r11.players.filter((p) => p.isBot).map((p) => p.pseudo),
+  ["Bot 1", "Bot 2", "Bot 3"]
+);
+check("Le créateur n'est pas marqué bot", r11.players[0].isBot, undefined);
+check(
+  "Les bots ne sont indexés dans aucune session/socket connu",
+  r11.players.filter((p) => p.isBot).every((p) => m11.getGameBySocket(p.socketId) === undefined),
+  true
+);
+m11.startGame(r11); // 4 sièges occupés → démarrage normal, sans modification de startGame()
+check("GameState créé avec bots", r11.state !== null, true);
+check("Statut passé à in-progress", r11.status, "in-progress");
+
+console.log("\n══════ addBotPlayers : ne remplit que les sièges libres ══════");
+const m12 = new GameManager();
+const r12 = m12.createGame("A", "sock-a12", "sess-a12");
+m12.joinGame(r12.gameId, "B", "sock-b12", "sess-b12"); // siège 1 déjà pris
+m12.addBotPlayers(r12);
+check("4 joueurs au total", r12.players.length, 4);
+check(
+  "Seuls les sièges 2 et 3 reçoivent un bot",
+  r12.players.filter((p) => p.isBot).map((p) => p.seat),
+  [2, 3]
+);
