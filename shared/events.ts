@@ -98,6 +98,9 @@ export interface ClientToServerEvents {
   createGame: (payload: CreateGamePayload) => void;
   joinGame: (payload: JoinGamePayload) => void;
   startGame: () => void; // démarré par le joueur du siège 0
+  // Crée une partie solo de test : siège 0 = l'appelant, sièges 1-3 = des
+  // bots, démarrage immédiat (cf. GameManager.addBotPlayers).
+  startTestGame: (payload: CreateGamePayload) => void;
   placeBid: (payload: PlaceBidPayload) => void;
   playCard: (payload: PlayCardPayload) => void;
   chooseTrump: (payload: ChooseTrumpPayload) => void;

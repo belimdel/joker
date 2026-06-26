@@ -56,20 +56,29 @@ function lobbyPayload(game: NetworkGame): LobbyUpdatePayload {
 // SÉCURITÉ : diffusion CIBLÉE. Chaque joueur reçoit SA PlayerView (sa
 // main en clair, les autres en simple compte) via un emit personnalisé
 // par socket — surtout PAS un broadcast unique avec le même payload.
+// Les sièges bots (mode solo de test) n'ont pas de socket réel : on les
+// ignore, leur émettre ne joindrait aucune room.
 function broadcastViews(game: NetworkGame): void {
   if (!game.state) return;
   for (const player of game.players) {
+    if (player.isBot) continue;
     const view = buildPlayerView(game.state, player.seat, game.turnStartedAt);
     io.to(player.socketId).emit("gameStateUpdate", view);
   }
 }
 
-// ─── Timer de tour (15s) + auto-jeu ──────────────────────────────
+// Délai d'auto-jeu pour un siège bot (mode solo de test) : on veut une
+// partie rapide à observer, pas un timeout pensé pour couvrir un humain
+// déconnecté. Ne concerne QUE les sièges marqués isBot — le délai des
+// sièges humains (TURN_DURATION_MS) n'est jamais modifié.
+const BOT_TURN_DELAY_MS = 800;
+
+// ─── Timer de tour (15s, ou 800ms pour un siège bot) + auto-jeu ──
 // Le serveur fait autorité sur le temps : à chaque changement de
-// currentPlayer, on (re)programme un timeout de TURN_DURATION_MS. S'il
-// expire sans action humaine, on joue À LA PLACE du joueur via
-// placeBid/playCard (shared/bot.ts choisit un coup LÉGAL, mêmes
-// validations que pour un humain), puis on reprogramme le tour suivant.
+// currentPlayer, on (re)programme un timeout. S'il expire sans action
+// humaine, on joue À LA PLACE du joueur via placeBid/playCard
+// (shared/bot.ts choisit un coup LÉGAL, mêmes validations que pour un
+// humain), puis on reprogramme le tour suivant.
 function clearTurnTimer(game: NetworkGame): void {
   if (game.turnTimer) {
     clearTimeout(game.turnTimer);
@@ -80,6 +89,10 @@ function clearTurnTimer(game: NetworkGame): void {
 function scheduleTurnTimer(game: NetworkGame): void {
   clearTurnTimer(game);
   if (!game.state || game.state.phase === "finished") return;
+
+  const seat = game.state.round.currentPlayer;
+  const isBotTurn = game.players.find((p) => p.seat === seat)?.isBot ?? false;
+  const delay = isBotTurn ? BOT_TURN_DELAY_MS : TURN_DURATION_MS;
 
   game.turnStartedAt = Date.now();
   game.turnTimer = setTimeout(() => {
@@ -111,7 +124,7 @@ function scheduleTurnTimer(game: NetworkGame): void {
 
     scheduleTurnTimer(game);
     broadcastViews(game);
-  }, TURN_DURATION_MS);
+  }, delay);
 }
 
 // Transforme une exception en gameError ciblé (jamais de crash serveur).
@@ -232,6 +245,34 @@ io.on("connection", (socket) => {
     scheduleTurnTimer(game);
     broadcastViews(game);
     console.log(`🚀 Partie ${game.gameId} démarrée.`);
+  });
+
+  // ── Partie solo de test (1 humain + 3 bots, démarrage immédiat) ──
+  // Option EN PLUS du flux normal createGame/joinGame/startGame, qui
+  // reste strictement inchangé. Les bots décident côté serveur via
+  // shared/bot.ts ; broadcastViews/PlayerView restent filtrés comme
+  // d'habitude (les sièges bots n'ont simplement aucun socket à qui
+  // envoyer leur vue).
+  socket.on("startTestGame", ({ pseudo }) => {
+    const name = (pseudo ?? "").trim();
+    if (name.length === 0) {
+      socket.emit("gameError", { code: "INVALID_PAYLOAD", message: "Pseudo manquant." });
+      return;
+    }
+    const game = manager.createGame(name, socket.id, sessionId);
+    manager.addBotPlayers(game);
+    socket.join(game.gameId);
+    try {
+      manager.startGame(game);
+    } catch (e) {
+      socket.emit("gameError", toGameError(e));
+      return;
+    }
+    socket.emit("gameCreated", { gameId: game.gameId, seat: 0 });
+    io.to(game.gameId).emit("lobbyUpdate", lobbyPayload(game));
+    scheduleTurnTimer(game);
+    broadcastViews(game);
+    console.log(`🤖 Partie solo de test ${game.gameId} démarrée par "${name}".`);
   });
 
   // ── Enchérir ──
