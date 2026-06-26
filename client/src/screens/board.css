@@ -218,18 +218,44 @@
   position: absolute;
   left: 50%;
   top: 50%;
+  --slide-x: 0px;
+  --slide-y: 0px;
+  transform: var(--anchor) translate(var(--slide-x), var(--slide-y));
+  /* Durée alignée sur TRICK_SLIDE_MS (Board.tsx) : la disparition du pli
+     doit coïncider avec la fin du geste, pas le couper. */
+  transition: transform 300ms ease, opacity 300ms ease;
 }
 .jk-trick__slot--self {
-  transform: translate(-50%, 18%);
+  --anchor: translate(-50%, 18%);
 }
 .jk-trick__slot--top {
-  transform: translate(-50%, -118%);
+  --anchor: translate(-50%, -118%);
 }
 .jk-trick__slot--left {
-  transform: translate(-118%, -50%);
+  --anchor: translate(-118%, -50%);
 }
 .jk-trick__slot--right {
-  transform: translate(18%, -50%);
+  --anchor: translate(18%, -50%);
+}
+
+/* Glissement du pli vers le siège gagnant, juste avant que le pli ne
+   disparaisse (cf. fenêtre des 1800ms dans Board.tsx, déclenchement
+   purement visuel via la prop slideDir — aucune logique de jeu ici). */
+.jk-trick__slot.is-sliding--self {
+  --slide-y: 70px;
+  opacity: 0;
+}
+.jk-trick__slot.is-sliding--top {
+  --slide-y: -70px;
+  opacity: 0;
+}
+.jk-trick__slot.is-sliding--left {
+  --slide-x: -70px;
+  opacity: 0;
+}
+.jk-trick__slot.is-sliding--right {
+  --slide-x: 70px;
+  opacity: 0;
 }
 
 .jk-played {
