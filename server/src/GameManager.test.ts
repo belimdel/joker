@@ -133,6 +133,31 @@ check("Statut passé à in-progress", r8.status, "in-progress");
 check("GameState : 4 joueurs", r8.state!.playerCount, 4);
 check("GameState : donne 0, phase bidding", r8.state!.round.phase, "bidding");
 
+console.log("\n══════ joinGame : refus si partie déjà démarrée (join frais) ══════");
+expectThrow("Refus de rejoindre une partie en cours", () =>
+  m8.joinGame(r8.gameId, "Intrus", "sock-intrus", "sess-intrus")
+);
+check(
+  "Code d'erreur GAME_IN_PROGRESS",
+  (() => {
+    try {
+      m8.joinGame(r8.gameId, "Intrus", "sock-intrus", "sess-intrus");
+      return "aucune";
+    } catch (e) {
+      return e instanceof GameManagerError ? e.code : "autre";
+    }
+  })(),
+  "GAME_IN_PROGRESS"
+);
+check("Aucun siège attribué à l'intrus", m8.getGameBySocket("sock-intrus"), undefined);
+check("Toujours 4 joueurs dans la partie", r8.players.length, 4);
+
+console.log("\n══════ reconnect : non affecté par le garde GAME_IN_PROGRESS ══════");
+const reco8 = m8.reconnect("sess-b8", "sock-b8-reco");
+check("Reconnexion OK sur une partie en cours", reco8?.game.gameId, r8.gameId);
+check("Reconnexion retrouve le bon siège", reco8?.seat, 1);
+check("Reconnexion retrouve le bon pseudo", reco8?.pseudo, "B");
+
 console.log("\n══════ handleDisconnect / reconnect : grace period ══════");
 const m9 = new GameManager();
 const r9 = m9.createGame("A", "sock-a", "sess-a9");

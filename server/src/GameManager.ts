@@ -107,6 +107,12 @@ export class GameManager {
         `Partie introuvable : ${gameId}`
       );
     }
+    if (game.status !== "waiting") {
+      throw new GameManagerError(
+        "GAME_IN_PROGRESS",
+        `La partie ${gameId} a déjà démarré.`
+      );
+    }
     if (game.players.length >= MAX_PLAYERS) {
       throw new GameManagerError("GAME_FULL", `La partie ${gameId} est complète.`);
     }

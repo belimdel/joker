@@ -75,7 +75,8 @@ export type GameErrorCode =
   | "INVALID_PAYLOAD"
   | "NOT_READY" // pas assez de joueurs pour démarrer
   | "NOT_STARTED" // action de jeu sur une partie non démarrée
-  | "ILLEGAL_MOVE"; // coup refusé par la logique (hors-tour, renonce, etc.)
+  | "ILLEGAL_MOVE" // coup refusé par la logique (hors-tour, renonce, etc.)
+  | "GAME_IN_PROGRESS"; // join frais refusé : la partie a déjà démarré
 
 // Erreur renvoyée au SEUL demandeur.
 export type GameErrorPayload = {
