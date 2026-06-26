@@ -35,6 +35,7 @@ type GameContextValue = {
   createGame: (pseudo: string) => void;
   joinGame: (gameId: string, pseudo: string) => void;
   startGame: () => void;
+  startTestGame: (pseudo: string) => void;
   placeBid: (bid: number) => void;
   playCard: (card: Card, announce?: JokerAnnounce, declaredSuit?: Suit | null) => void;
   chooseTrump: (suit: Suit | null) => void;
@@ -137,6 +138,13 @@ export function GameProvider({ children }: { children: ReactNode }) {
     socket.emit("startGame");
   }, []);
 
+  const startTestGame = useCallback((pseudo: string) => {
+    setError(null);
+    setNotice(null);
+    setMyPseudo(pseudo);
+    socket.emit("startTestGame", { pseudo });
+  }, []);
+
   const placeBid = useCallback((bid: number) => {
     setError(null);
     setNotice(null);
@@ -186,6 +194,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       createGame,
       joinGame,
       startGame,
+      startTestGame,
       placeBid,
       playCard,
       chooseTrump,
@@ -193,7 +202,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       clearNotice,
       leave,
     }),
-    [connected, connectionStatus, lobby, view, error, notice, isHost, myPseudo, createGame, joinGame, startGame, placeBid, playCard, chooseTrump, clearError, clearNotice, leave]
+    [connected, connectionStatus, lobby, view, error, notice, isHost, myPseudo, createGame, joinGame, startGame, startTestGame, placeBid, playCard, chooseTrump, clearError, clearNotice, leave]
   );
 
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>;

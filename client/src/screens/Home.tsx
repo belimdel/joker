@@ -3,7 +3,7 @@ import { useGame } from "../GameContext";
 import "./screens.css";
 
 export function Home() {
-  const { createGame, joinGame, error, notice, connected } = useGame();
+  const { createGame, joinGame, startTestGame, error, notice, connected } = useGame();
   const [mode, setMode] = useState<"create" | "join">("create");
   const [pseudo, setPseudo] = useState("");
   const [code, setCode] = useState("");
@@ -96,6 +96,14 @@ export function Home() {
               Rejoindre
             </button>
           )}
+
+          <button
+            className="jk-btn jk-btn--ghost jk-btn--block"
+            disabled={!canCreate}
+            onClick={() => startTestGame(cleanPseudo)}
+          >
+            Partie solo (test)
+          </button>
         </div>
       </div>
 
