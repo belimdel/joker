@@ -371,7 +371,6 @@ export function Board() {
     pseudo: pseudoOf(seat),
     bid: view.bids[seat],
     tricksWon: view.tricksWon[seat],
-    handCount: view.handCounts[seat],
     roundPhase: view.roundPhase,
     isTurn: view.currentPlayer === seat,
     isDealer: view.dealerIndex === seat,
