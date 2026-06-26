@@ -10,7 +10,7 @@ import { BidOverlay } from "../components/BidOverlay";
 import { TrumpChoiceOverlay } from "../components/TrumpChoiceOverlay";
 import { ScoreModal } from "../components/ScoreModal";
 import { isLegalPlay } from "@shared/round";
-import type { Card, Suit } from "@shared/cards";
+import { rankStrength, type Card, type Suit } from "@shared/cards";
 import type { JokerAnnounce, PlayedCard } from "@shared/trick";
 import type { PlayerView } from "@shared/views";
 import type { GameErrorPayload } from "@shared/events";
@@ -35,6 +35,23 @@ function relPos(seat: number, me: number): SeatPos {
 // Clé stable d'une carte (les cartes d'une main sont toutes distinctes).
 function cardKey(card: Card): string {
   return card.type === "joker" ? card.id : `${card.suit}-${card.rank}`;
+}
+
+// ─── Tri d'AFFICHAGE de la main (purement visuel) ──────────────────
+// Enseignes groupées en alternance rouge/noir, valeurs croissantes
+// dans chaque enseigne, Jokers à l'extrémité. Ne change ni l'ordre
+// côté serveur ni la carte référencée par un clic : on trie une copie
+// et chaque carte garde sa propre identité (closure sur `card`).
+const HAND_SUIT_ORDER: Suit[] = ["hearts", "spades", "diamonds", "clubs"];
+
+function compareCardsForDisplay(a: Card, b: Card): number {
+  if (a.type === "joker" || b.type === "joker") {
+    if (a.type === "joker" && b.type === "joker") return a.id.localeCompare(b.id);
+    return a.type === "joker" ? 1 : -1;
+  }
+  const suitDiff = HAND_SUIT_ORDER.indexOf(a.suit) - HAND_SUIT_ORDER.indexOf(b.suit);
+  if (suitDiff !== 0) return suitDiff;
+  return rankStrength(a.rank) - rankStrength(b.rank);
 }
 
 function trumpLabel(trumpSuit: Suit | null): string {
@@ -119,9 +136,15 @@ function Hand({
 }) {
   const interactive = view.roundPhase === "playing";
 
+  // Tri d'affichage uniquement : la légalité se vérifie toujours sur
+  // view.hand (ordre brut, sans incidence sur isLegalPlay), et chaque
+  // carte triée garde sa propre référence pour le clic — aucun risque
+  // de mapping puisqu'on ne passe jamais par un index.
+  const sortedHand = [...view.hand].sort(compareCardsForDisplay);
+
   return (
     <div className="jk-hand">
-      {view.hand.map((card, i) => {
+      {sortedHand.map((card, i) => {
         // Confort UX : on grise les cartes injouables (le serveur revalide).
         const legal =
           interactive &&
@@ -137,7 +160,17 @@ function Hand({
               dealIndex={i}
               disabled={interactive && !legal}
               selected={key === pendingKey}
-              onClick={legal ? () => onPlay(card) : undefined}
+              // Stable pendant toute la phase "playing" (ne dépend pas
+              // de `legal`, qui varie pli après pli) : évite que le
+              // tag bouton/div change et ne remonte la carte à chaque
+              // coup joué. Le clic réel reste gardé par `legal`.
+              onClick={
+                interactive
+                  ? () => {
+                      if (legal) onPlay(card);
+                    }
+                  : undefined
+              }
             />
           </div>
         );

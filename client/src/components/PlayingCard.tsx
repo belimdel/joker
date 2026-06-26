@@ -60,7 +60,14 @@ export function PlayingCard({
 }: PlayingCardProps) {
   const back = faceDown || !card;
   const isJoker = !back && card!.type === "joker";
-  const clickable = !!onClick && !disabled && !back;
+  // Le TYPE d'élément (bouton vs div) ne doit dépendre QUE de la
+  // présence d'un gestionnaire de clic, jamais de `disabled` : sinon,
+  // quand une carte passe jouable ↔ injouable, React démonte/remonte
+  // le nœud (changement de tag) et rejoue l'animation jk-deal pour
+  // rien. `disabled` ne pilote que le rendu (classe CSS) et l'attribut
+  // HTML natif, qui bloque déjà le clic sans changer de tag.
+  const interactive = !!onClick && !back;
+  const clickable = interactive && !disabled;
 
   const className = [
     "jk-card",
@@ -87,9 +94,15 @@ export function PlayingCard({
     <CardFace card={card!} />
   );
 
-  if (clickable) {
+  if (interactive) {
     return (
-      <button type="button" className={className} style={style} onClick={onClick}>
+      <button
+        type="button"
+        className={className}
+        style={style}
+        onClick={onClick}
+        disabled={!clickable}
+      >
         {content}
       </button>
     );
