@@ -20,11 +20,17 @@ function formatPoints(raw: number): string {
   return (raw / 100).toLocaleString("fr-FR", { maximumFractionDigits: 2 });
 }
 
+// Dernière ligne de LAST_DEAL_OF_SET = fin du set 4 = fin de partie : son
+// sous-total cumulé EST le total final (égal à view.scores, cf. garde-fou).
+// On l'étiquette "Total" plutôt que "Set 4" pour éviter une ligne redondante.
+const FINAL_SET_NUMBER = LAST_DEAL_OF_SET.length;
+
 // ─── Tableau de scores plein écran (ouvert via le bouton 🏆) ───────
-// Une ligne par donne TERMINÉE (view.roundHistory : enchère/plis/score
-// BRUT de chaque joueur, public, avant prime/effacement de fin de set),
-// puis la donne EN COURS (live, tant que la partie n'est pas finie), et
-// le cumul total (view.scores, qui lui inclut primes/effacements).
+// Une ligne par donne TERMINÉE (view.roundHistory : enchère/score BRUT de
+// chaque joueur, public, avant prime/effacement de fin de set), une ligne
+// de sous-total cumulé après chaque set (running, recalculé à partir des
+// flags doubled/erased — la dernière vaut le total final), puis la donne
+// EN COURS (live, tant que la partie n'est pas finie).
 export function ScoreModal({ view, pseudoOf, onClose }: ScoreModalProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -90,21 +96,19 @@ export function ScoreModal({ view, pseudoOf, onClose }: ScoreModalProps) {
                         // ×2 / barré : indexés par siège (prime de set).
                         const showDouble = deal.doubled[seat];
                         const showErased = deal.erased[seat];
-                        const cellClass = xisht ? "is-xisht" : met ? "is-ok" : "is-pending";
+                        const scoreClass = xisht ? "is-xisht" : met ? "is-ok" : "is-pending";
                         return (
-                          <td key={seat} className={`jk-scoretable__cell ${cellClass}`}>
+                          <td key={seat} className="jk-scoretable__cell">
+                            <span className="jk-scoretable__bid">{bid}</span>
                             <span
-                              className={`jk-scoretable__cellpoints${showErased ? " is-erased" : ""}`}
+                              className={`jk-scoretable__score ${scoreClass}${
+                                showErased ? " is-erased" : ""
+                              }`}
                             >
                               {score}
                               {showDouble && (
-                                <span className="jk-scoretable__badge jk-scoretable__badge--double">
-                                  ×2
-                                </span>
+                                <span className="jk-scoretable__badge--double">×2</span>
                               )}
-                            </span>
-                            <span className="jk-scoretable__cellratio">
-                              {won}/{bid}
                             </span>
                           </td>
                         );
@@ -113,11 +117,13 @@ export function ScoreModal({ view, pseudoOf, onClose }: ScoreModalProps) {
                     {isSetEnd && (
                       <tr className="jk-scoretable__setrow">
                         <th className="jk-scoretable__rowlabel" scope="row">
-                          Set {LAST_DEAL_OF_SET.indexOf(deal.dealIndex) + 1}
+                          {LAST_DEAL_OF_SET.indexOf(deal.dealIndex) + 1 === FINAL_SET_NUMBER
+                            ? "Total"
+                            : `Set ${LAST_DEAL_OF_SET.indexOf(deal.dealIndex) + 1}`}
                         </th>
                         {SEATS.map((seat) => (
                           <td key={seat} className="jk-scoretable__subtotal">
-                            {formatPoints(running[seat])} pts
+                            {formatPoints(running[seat])}
                           </td>
                         ))}
                       </tr>
@@ -136,32 +142,18 @@ export function ScoreModal({ view, pseudoOf, onClose }: ScoreModalProps) {
                   const bid = view.bids[seat];
                   const won = view.tricksWon[seat];
                   const met = bid !== null && won === bid;
+                  const scoreClass = bid === null ? "is-empty" : met ? "is-ok" : "is-pending";
                   return (
-                    <td
-                      key={seat}
-                      className={`jk-scoretable__cell ${
-                        bid === null ? "is-empty" : met ? "is-ok" : "is-pending"
-                      }`}
-                    >
-                      {bid === null ? "—" : `${won} / ${bid}`}
+                    <td key={seat} className="jk-scoretable__cell">
+                      <span className={`jk-scoretable__score ${scoreClass}`}>
+                        {bid === null ? "—" : `${won}/${bid}`}
+                      </span>
                     </td>
                   );
                 })}
               </tr>
             )}
           </tbody>
-          <tfoot>
-            <tr>
-              <th className="jk-scoretable__rowlabel" scope="row">
-                Total
-              </th>
-              {SEATS.map((seat) => (
-                <td key={seat} className="jk-scoretable__total">
-                  {formatPoints(view.scores[seat])} pts
-                </td>
-              ))}
-            </tr>
-          </tfoot>
         </table>
       </div>
 
