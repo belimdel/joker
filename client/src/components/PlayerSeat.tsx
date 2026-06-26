@@ -10,7 +10,6 @@ export type PlayerSeatProps = {
   pseudo: string;
   bid: number | null; // enchère (null = pas encore annoncée)
   tricksWon: number; // plis remportés cette manche
-  handCount: number; // nombre de cartes en main
   roundPhase: RoundPhase;
   isTurn: boolean; // c'est son tour (enchère ou jeu)
   isDealer: boolean;
@@ -29,7 +28,6 @@ export function PlayerSeat({
   pseudo,
   bid,
   tricksWon,
-  handCount,
   roundPhase,
   isTurn,
   isDealer,
@@ -75,13 +73,6 @@ export function PlayerSeat({
             </span>
           ) : (
             <BidStatus bid={bid} tricksWon={tricksWon} />
-          )}
-
-          {!isMe && (
-            <span className="jk-pseat__count" title={`${handCount} cartes`}>
-              <i className="jk-minicard" aria-hidden="true" />
-              {handCount}
-            </span>
           )}
         </div>
 

@@ -27,14 +27,12 @@ export function BidStatus({ bid, tricksWon }: BidStatusProps) {
     >
       <span className="jk-bidstatus__item">
         <span className="jk-bidstatus__value">{bidLabel}</span>
-        <span className="jk-bidstatus__label">annoncé</span>
       </span>
       <span className="jk-bidstatus__sep" aria-hidden="true">
         /
       </span>
       <span className="jk-bidstatus__item">
         <span className="jk-bidstatus__value">{tricksWon}</span>
-        <span className="jk-bidstatus__label">pris</span>
       </span>
     </span>
   );
