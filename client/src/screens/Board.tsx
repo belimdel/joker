@@ -353,7 +353,11 @@ export function Board() {
 
       <ErrorToast error={error} onClose={clearError} />
 
-      <TrumpOverlay trumpCard={view.trumpCard} trumpSuit={view.trumpSuit} />
+      <TrumpOverlay
+        trumpCard={view.trumpCard}
+        trumpSuit={view.trumpSuit}
+        roundPhase={view.roundPhase}
+      />
 
       <button
         type="button"
