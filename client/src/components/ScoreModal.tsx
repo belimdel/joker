@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { Fragment, useEffect, useRef } from "react";
 import type { PlayerView } from "@shared/views";
 import "./ScoreModal.css";
 
@@ -9,6 +9,16 @@ export type ScoreModalProps = {
 };
 
 const SEATS = [0, 1, 2, 3];
+
+// Schedule à 4 joueurs figé (cf. shared/game.ts buildGameSchedule) : 4 sets de
+// tailles fixes 8/4/8/4 donnes. dealHistory n'a pas de champ setIndex, donc on
+// déduit l'appartenance au set par bornes fixes sur dealIndex. LAST_DEAL_OF_SET[i]
+// = dealIndex de la dernière donne du set i (où poser la ligne de sous-total).
+const LAST_DEAL_OF_SET = [7, 11, 19, 23];
+
+function formatPoints(raw: number): string {
+  return (raw / 100).toLocaleString("fr-FR", { maximumFractionDigits: 2 });
+}
 
 // ─── Tableau de scores plein écran (ouvert via le bouton 🏆) ───────
 // Une ligne par donne TERMINÉE (view.roundHistory : enchère/plis/score
@@ -50,40 +60,72 @@ export function ScoreModal({ view, pseudoOf, onClose }: ScoreModalProps) {
             </tr>
           </thead>
           <tbody>
-            {view.roundHistory.map((deal) => (
-              <tr key={deal.dealIndex}>
-                <th className="jk-scoretable__rowlabel" scope="row" />
-                {SEATS.map((seat) => {
-                  const bid = deal.bids[seat];
-                  const won = deal.tricksWon[seat];
-                  const score = deal.scores[seat];
-                  const met = won === bid;
-                  // Xisht : enchère non nulle totalement ratée (sanction -200).
-                  const xisht = bid >= 1 && won === 0;
-                  // ×2 / barré : indexés par siège (prime de set).
-                  const showDouble = deal.doubled[seat];
-                  const showErased = deal.erased[seat];
-                  const cellClass = xisht ? "is-xisht" : met ? "is-ok" : "is-pending";
-                  return (
-                    <td key={seat} className={`jk-scoretable__cell ${cellClass}`}>
-                      <span
-                        className={`jk-scoretable__cellpoints${showErased ? " is-erased" : ""}`}
-                      >
-                        {score}
-                        {showDouble && (
-                          <span className="jk-scoretable__badge jk-scoretable__badge--double">
-                            ×2
-                          </span>
-                        )}
-                      </span>
-                      <span className="jk-scoretable__cellratio">
-                        {won}/{bid}
-                      </span>
-                    </td>
-                  );
-                })}
-              </tr>
-            ))}
+            {(() => {
+              // Cumul couru par siège (donne brute, doublée une 2e fois si
+              // doubled, retranchée si erased), pour poser les sous-totaux
+              // de set sans toucher au reste de la logique d'affichage.
+              const running = [0, 0, 0, 0];
+              return view.roundHistory.map((deal) => {
+                for (const seat of SEATS) {
+                  let delta = deal.scores[seat];
+                  if (deal.doubled[seat]) delta += deal.scores[seat];
+                  if (deal.erased[seat]) delta -= deal.scores[seat];
+                  running[seat] += delta;
+                }
+                const isSetEnd = LAST_DEAL_OF_SET.includes(deal.dealIndex);
+
+                return (
+                  <Fragment key={deal.dealIndex}>
+                    <tr>
+                      <th className="jk-scoretable__rowlabel" scope="row">
+                        {deal.cardsPerPlayer}
+                      </th>
+                      {SEATS.map((seat) => {
+                        const bid = deal.bids[seat];
+                        const won = deal.tricksWon[seat];
+                        const score = deal.scores[seat];
+                        const met = won === bid;
+                        // Xisht : enchère non nulle totalement ratée (sanction -200).
+                        const xisht = bid >= 1 && won === 0;
+                        // ×2 / barré : indexés par siège (prime de set).
+                        const showDouble = deal.doubled[seat];
+                        const showErased = deal.erased[seat];
+                        const cellClass = xisht ? "is-xisht" : met ? "is-ok" : "is-pending";
+                        return (
+                          <td key={seat} className={`jk-scoretable__cell ${cellClass}`}>
+                            <span
+                              className={`jk-scoretable__cellpoints${showErased ? " is-erased" : ""}`}
+                            >
+                              {score}
+                              {showDouble && (
+                                <span className="jk-scoretable__badge jk-scoretable__badge--double">
+                                  ×2
+                                </span>
+                              )}
+                            </span>
+                            <span className="jk-scoretable__cellratio">
+                              {won}/{bid}
+                            </span>
+                          </td>
+                        );
+                      })}
+                    </tr>
+                    {isSetEnd && (
+                      <tr className="jk-scoretable__setrow">
+                        <th className="jk-scoretable__rowlabel" scope="row">
+                          Set {LAST_DEAL_OF_SET.indexOf(deal.dealIndex) + 1}
+                        </th>
+                        {SEATS.map((seat) => (
+                          <td key={seat} className="jk-scoretable__subtotal">
+                            {formatPoints(running[seat])} pts
+                          </td>
+                        ))}
+                      </tr>
+                    )}
+                  </Fragment>
+                );
+              });
+            })()}
 
             {view.gamePhase !== "finished" && (
               <tr>
@@ -115,8 +157,7 @@ export function ScoreModal({ view, pseudoOf, onClose }: ScoreModalProps) {
               </th>
               {SEATS.map((seat) => (
                 <td key={seat} className="jk-scoretable__total">
-                  {(view.scores[seat] / 100).toLocaleString("fr-FR", { maximumFractionDigits: 2 })}{" "}
-                  pts
+                  {formatPoints(view.scores[seat])} pts
                 </td>
               ))}
             </tr>
