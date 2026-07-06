@@ -8,11 +8,25 @@ export const users = pgTable('users', {
   username:     text('username').unique().notNull(),
   passwordHash: text('password_hash').notNull(),
   xp:           integer('xp').notNull().default(0),
+  // Vérification d'email par code (FIX B). Les comptes pré-existants sont
+  // passés à true par la migration ; un nouveau compte naît à false.
+  emailVerified: boolean('email_verified').notNull().default(false),
   createdAt:    timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
   // Unicité insensible à la casse sur username.
   index('users_username_lower_idx').on(sql`lower(${table.username})`),
 ]);
+
+// ─── email_verification_codes ────────────────────────────────────
+// Un seul code actif par utilisateur (user_id = clé primaire). On ne stocke
+// JAMAIS le code en clair : uniquement son SHA-256 hex.
+export const emailVerificationCodes = pgTable('email_verification_codes', {
+  userId:     uuid('user_id').primaryKey().references(() => users.id, { onDelete: 'cascade' }),
+  codeHash:   text('code_hash').notNull(),           // SHA-256 hex du code à 6 chiffres
+  expiresAt:  timestamp('expires_at', { withTimezone: true }).notNull(), // création + 15 min
+  attempts:   integer('attempts').notNull().default(0),
+  lastSentAt: timestamp('last_sent_at', { withTimezone: true }).notNull(),
+});
 
 // ─── sessions ────────────────────────────────────────────────────
 export const sessions = pgTable('sessions', {

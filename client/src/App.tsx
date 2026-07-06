@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from "./AuthContext";
 import { Home } from "./screens/Home";
 import { Login } from "./screens/Login";
 import { Register } from "./screens/Register";
+import { VerifyEmail } from "./screens/VerifyEmail";
 import { Lobby } from "./screens/Lobby";
 import { Board } from "./screens/Board";
 import { Profile } from "./screens/Profile";
@@ -23,6 +24,7 @@ function Screen() {
   if (lobby) return <Lobby />;
   if (authView === 'login') return <Login />;
   if (authView === 'register') return <Register />;
+  if (authView === 'verify') return <VerifyEmail />;
 
   if (nav === 'profile') {
     return (

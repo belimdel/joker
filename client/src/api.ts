@@ -14,7 +14,7 @@ export type PublicUser = {
 async function apiFetch<T>(
   path: string,
   options: RequestInit = {}
-): Promise<{ ok: true; data: T } | { ok: false; status: number; error: string }> {
+): Promise<{ ok: true; data: T } | { ok: false; status: number; error: string; code?: string }> {
   let res: Response;
   try {
     res = await fetch(path, {
@@ -33,7 +33,13 @@ async function apiFetch<T>(
 
   const json = await res.json().catch(() => ({}));
   if (!res.ok) {
-    return { ok: false, status: res.status, error: (json as ApiError).error ?? `Erreur serveur (${res.status}).` };
+    // `code` typé (ex. EMAIL_NOT_VERIFIED) exposé au front pour l'aiguillage.
+    return {
+      ok: false,
+      status: res.status,
+      error: (json as ApiError).error ?? `Erreur serveur (${res.status}).`,
+      code: (json as { code?: string }).code,
+    };
   }
   return { ok: true, data: json as T };
 }
@@ -82,10 +88,25 @@ export const api = {
       body: JSON.stringify({ email, password }),
     }),
 
+  // Register ne connecte plus directement : il déclenche la vérification email.
   register: (email: string, username: string, password: string) =>
-    apiFetch<{ user: PublicUser }>('/api/auth/register', {
+    apiFetch<{ requiresVerification: boolean }>('/api/auth/register', {
       method: 'POST',
       body: JSON.stringify({ email, username, password }),
+    }),
+
+  // Vérifie le code → connecte l'utilisateur (cookie posé côté serveur).
+  verifyEmail: (email: string, code: string) =>
+    apiFetch<{ user: PublicUser }>('/api/auth/verify-email', {
+      method: 'POST',
+      body: JSON.stringify({ email, code }),
+    }),
+
+  // Renvoie un code (réponse 204 systématique, anti-énumération).
+  resendCode: (email: string) =>
+    apiFetch<void>('/api/auth/resend-code', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
     }),
 
   logout: () =>
