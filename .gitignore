@@ -1,0 +1,17 @@
+# Variables d'environnement (ne jamais committer les secrets)
+.env
+.env.local
+
+# Dépendances
+node_modules/
+
+# Build
+dist/
+dist-ssr/
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db

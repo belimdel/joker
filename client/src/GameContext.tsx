@@ -14,6 +14,7 @@ import type {
   LobbyUpdatePayload,
   GameErrorPayload,
   SessionRestoredPayload,
+  PublicGameSummary,
 } from "@shared/events";
 import type { PlayerView } from "@shared/views";
 
@@ -31,8 +32,9 @@ type GameContextValue = {
   notice: string | null; // message neutre (non-erreur), ex. session expirée
   isHost: boolean; // ai-je créé la partie (siège 0) ?
   myPseudo: string;
+  publicGames: PublicGameSummary[];
 
-  createGame: (pseudo: string) => void;
+  createGame: (pseudo: string, visibility?: 'public' | 'private') => void;
   joinGame: (gameId: string, pseudo: string) => void;
   startGame: () => void;
   startTestGame: (pseudo: string) => void;
@@ -57,12 +59,15 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const [notice, setNotice] = useState<string | null>(null);
   const [isHost, setIsHost] = useState(false);
   const [myPseudo, setMyPseudo] = useState("");
+  const [publicGames, setPublicGames] = useState<PublicGameSummary[]>([]);
 
   // Abonnement UNIQUE aux événements serveur (nettoyé au démontage).
   useEffect(() => {
     const onConnect = () => {
       setConnected(true);
       setConnectionStatus("connected");
+      // Rejoindre la room lobby-browser pour recevoir les mises à jour.
+      socket.emit("listGames");
     };
     const onDisconnect = () => {
       setConnected(false);
@@ -92,6 +97,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
       setIsHost(false);
       setNotice("Cette partie a expiré, recrée-en une.");
     };
+    const onPublicGames = ({ games }: { games: PublicGameSummary[] }) => {
+      setPublicGames(games);
+    };
 
     socket.on("connect", onConnect);
     socket.on("disconnect", onDisconnect);
@@ -103,6 +111,15 @@ export function GameProvider({ children }: { children: ReactNode }) {
     socket.on("gameError", onError);
     socket.on("sessionRestored", onSessionRestored);
     socket.on("sessionExpired", onSessionExpired);
+    socket.on("publicGamesUpdate", onPublicGames);
+
+    // Le socket peut s'être connecté AVANT que useEffect enregistre onConnect
+    // (race condition au premier rendu). On resynchronise l'état ici.
+    if (socket.connected) {
+      setConnected(true);
+      setConnectionStatus("connected");
+      socket.emit("listGames");
+    }
 
     return () => {
       socket.off("connect", onConnect);
@@ -115,14 +132,15 @@ export function GameProvider({ children }: { children: ReactNode }) {
       socket.off("gameError", onError);
       socket.off("sessionRestored", onSessionRestored);
       socket.off("sessionExpired", onSessionExpired);
+      socket.off("publicGamesUpdate", onPublicGames);
     };
   }, []);
 
-  const createGame = useCallback((pseudo: string) => {
+  const createGame = useCallback((pseudo: string, visibility: 'public' | 'private' = 'public') => {
     setError(null);
     setNotice(null);
     setMyPseudo(pseudo);
-    socket.emit("createGame", { pseudo });
+    socket.emit("createGame", { pseudo, visibility });
   }, []);
 
   const joinGame = useCallback((gameId: string, pseudo: string) => {
@@ -191,6 +209,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       notice,
       isHost,
       myPseudo,
+      publicGames,
       createGame,
       joinGame,
       startGame,
@@ -202,7 +221,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       clearNotice,
       leave,
     }),
-    [connected, connectionStatus, lobby, view, error, notice, isHost, myPseudo, createGame, joinGame, startGame, startTestGame, placeBid, playCard, chooseTrump, clearError, clearNotice, leave]
+    [connected, connectionStatus, lobby, view, error, notice, isHost, myPseudo, publicGames, createGame, joinGame, startGame, startTestGame, placeBid, playCard, chooseTrump, clearError, clearNotice, leave]
   );
 
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>;

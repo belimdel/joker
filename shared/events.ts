@@ -25,6 +25,15 @@ export type WelcomePayload = {
 // Le client demande la création d'une partie.
 export type CreateGamePayload = {
   pseudo: string;
+  visibility?: 'public' | 'private'; // défaut 'public' si absent
+};
+
+// Résumé public d'une partie visible dans le lobby (anti-triche : AUCUNE donnée de jeu).
+export type PublicGameSummary = {
+  roomCode: string;
+  hostUsername: string;
+  playerCount: number;
+  createdAt: number; // Date.now() à la création
 };
 
 // Réponse au seul créateur : l'identifiant à partager + son siège.
@@ -44,6 +53,8 @@ export type LobbyUpdatePayload = {
   gameId: string;
   status: GameStatus;
   players: PlayerPublic[]; // triés par siège
+  // Niveau de chaque siège (index = siège 0-3) ; null = invité ou bot.
+  playerLevels: (number | null)[];
 };
 
 // ── Payloads de JEU (intentions du client) ──
@@ -101,6 +112,8 @@ export interface ClientToServerEvents {
   // Crée une partie solo de test : siège 0 = l'appelant, sièges 1-3 = des
   // bots, démarrage immédiat (cf. GameManager.addBotPlayers).
   startTestGame: (payload: CreateGamePayload) => void;
+  // Demande la liste des parties publiques et rejoint la room lobby-browser.
+  listGames: () => void;
   placeBid: (payload: PlaceBidPayload) => void;
   playCard: (payload: PlayCardPayload) => void;
   chooseTrump: (payload: ChooseTrumpPayload) => void;
@@ -119,4 +132,6 @@ export interface ServerToClientEvents {
   // Session orpheline (sessionId fourni mais inconnu du serveur) : le
   // client doit purger sa session locale et revenir à l'accueil.
   sessionExpired: () => void;
+  // Liste des parties publiques joignables (diffusée à la room lobby-browser).
+  publicGamesUpdate: (payload: { games: PublicGameSummary[] }) => void;
 }

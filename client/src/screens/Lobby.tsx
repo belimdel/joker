@@ -43,12 +43,18 @@ export function Lobby() {
         </div>
 
         <div className="jk-seats">
-          {seats.map((p, i) => (
-            <div key={i} className={`jk-seat ${p ? "is-filled" : ""}`}>
-              <span className="jk-seat__num">Siège {i + 1}</span>
-              <span className="jk-seat__name">{p ? p.pseudo : "Libre…"}</span>
-            </div>
-          ))}
+          {seats.map((p, i) => {
+            const lvl = p ? (lobby.playerLevels?.[i] ?? null) : null;
+            return (
+              <div key={i} className={`jk-seat ${p ? "is-filled" : ""}`}>
+                <span className="jk-seat__num">Siège {i + 1}</span>
+                <span className="jk-seat__name">
+                  {p ? p.pseudo : "Libre…"}
+                  {lvl != null && <span className="jk-seat__level"> niv.{lvl}</span>}
+                </span>
+              </div>
+            );
+          })}
         </div>
 
         <div className="jk-lobby__count">{players.length} / 4 joueurs</div>

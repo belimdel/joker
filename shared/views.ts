@@ -73,6 +73,12 @@ export type PlayerView = {
   // (game.ts) — même type DealResult, juste un nom différent côté vue
   // (déjà consommé par le client, cf. ScoreModal.tsx : ne pas renommer).
   roundHistory: DealResult[];
+
+  // ── Niveaux des joueurs (V5) ──
+  // Niveau cosmétique de chaque siège (index = siège 0-3).
+  // null = invité ou bot (rien affiché côté client pour ce siège).
+  // Calculé depuis xp au moment du join (une seule requête BDD, pas par manche).
+  playerLevels: (number | null)[];
 };
 
 // ─── La projection (fonction pure) ──────────────────────────────
@@ -84,7 +90,8 @@ export type PlayerView = {
 export function buildPlayerView(
   state: GameState,
   playerIndex: number,
-  turnStartedAt: number = Date.now()
+  turnStartedAt: number = Date.now(),
+  playerLevels: (number | null)[] = []
 ): PlayerView {
   const round = state.round;
   const deal = state.schedule[state.currentDealIndex];
@@ -132,5 +139,7 @@ export function buildPlayerView(
       tricksWon: [...d.tricksWon],
       scores: [...d.scores],
     })),
+
+    playerLevels: Array.from({ length: state.playerCount }, (_, i) => playerLevels[i] ?? null),
   };
 }

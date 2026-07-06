@@ -1,10 +1,17 @@
 {
   "permissions": {
     "allow": [
+      "Read",
+      "Edit",
+      "Write",
       "Bash(curl -s http://localhost:5174/)",
       "Bash(curl -s \"http://localhost:5174/src/socket.ts\")",
       "PowerShell(npx.cmd eslint src/screens/Board.tsx src/components/JokerModal.tsx src/components/PlayerSeat.tsx 2>&1)",
-      "PowerShell($env:CI='1'; Start-Job -Name vite -ScriptBlock { Set-Location 'C:\\\\Users\\\\hmher\\\\OneDrive\\\\Bureau\\\\Joker\\\\client'; & npx.cmd vite --port 5180 --strictPort } | Out-Null; Start-Sleep -Seconds 6; \"job started\")"
+      "PowerShell($env:CI='1'; Start-Job -Name vite -ScriptBlock { Set-Location 'C:\\\\Users\\\\hmher\\\\OneDrive\\\\Bureau\\\\Joker\\\\client'; & npx.cmd vite --port 5180 --strictPort } | Out-Null; Start-Sleep -Seconds 6; \"job started\")",
+      "Skill(update-config)",
+      "Skill(update-config:*)",
+      "PowerShell(New-Item -ItemType Directory -Force \"c:\\\\Users\\\\hmher\\\\OneDrive\\\\Bureau\\\\Joker\\\\server\\\\src\\\\db\")",
+      "PowerShell(cd \"c:\\\\Users\\\\hmher\\\\OneDrive\\\\Bureau\\\\Joker\\\\server\"; $job = Start-Job -ScriptBlock { Set-Location \"c:\\\\Users\\\\hmher\\\\OneDrive\\\\Bureau\\\\Joker\\\\server\"; & npm.cmd run dev 2>&1 }; Start-Sleep -Seconds 5; Receive-Job $job; Stop-Job $job; Remove-Job $job)"
     ]
   }
 }

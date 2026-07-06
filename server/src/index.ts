@@ -1,8 +1,10 @@
+import 'dotenv/config';
 import express from "express";
 import { createServer } from "http";
 import { randomUUID } from "crypto";
 import { Server } from "socket.io";
 import cors from "cors";
+import cookieParser from "cookie-parser";
 import path from "path";
 import mime from "mime";
 import { GameManager, GameManagerError, NetworkGame } from "./GameManager";
@@ -16,9 +18,23 @@ import type {
   LobbyUpdatePayload,
   GameErrorPayload,
 } from "../../shared/events";
+import { authRouter } from "./auth/routes.js";
+import { statsRouter } from "./stats/routes.js";
+import { applySocketAuth } from "./auth/socketAuth.js";
+import { getUserById } from "./auth/sessions.js";
+import { levelForXp } from "../../shared/progression.js";
+import { db } from "./db/client.js";
+import { saveGameResult } from "./persistence/gameResults.js";
+
+// Données attachées à chaque socket (posées par le middleware socketAuth).
+type SocketData = {
+  userId: string | null;
+};
 
 const app = express();
 app.use(cors());
+app.use(express.json());
+app.use(cookieParser());
 
 // Socket.IO a besoin d'un serveur HTTP "brut" pour s'y attacher.
 const httpServer = createServer(app);
@@ -29,27 +45,61 @@ const httpServer = createServer(app);
 const allowedOrigin =
   process.env.CLIENT_URL || "http://localhost:5173";
 
-const io = new Server<ClientToServerEvents, ServerToClientEvents>(
+const io = new Server<ClientToServerEvents, ServerToClientEvents, Record<string, never>, SocketData>(
   httpServer,
   {
     cors: {
       origin: allowedOrigin,
+      credentials: true,
       methods: ["GET", "POST"],
     },
   }
 );
+
+// Middleware Socket.IO : identité depuis le cookie jk_session.
+applySocketAuth(io);
+
+// Routes REST sous /api
+app.use('/api/auth', authRouter);
+app.use('/api', statsRouter);
 
 // Le gestionnaire de parties vit pour toute la durée du process.
 const manager = new GameManager();
 
 // ─── Helpers de diffusion ────────────────────────────────────────
 
+// Résout le pseudo d'un socket : si connecté → username BDD ; sinon → fallback.
+async function resolveUsername(userId: string | null, fallbackPseudo: string): Promise<string> {
+  if (!userId) return fallbackPseudo;
+  const user = await getUserById(userId).catch(() => null);
+  return user?.username ?? fallbackPseudo;
+}
+
+// Résout le niveau d'un joueur depuis la BDD (une seule requête au join).
+// Retourne null si pas d'userId, si la BDD est down, ou en cas d'erreur.
+async function resolveUserLevel(userId: string | null): Promise<number | null> {
+  if (!userId) return null;
+  const user = await getUserById(userId).catch(() => null);
+  if (!user) return null;
+  return levelForXp(user.xp);
+}
+
+// Diffuse la liste des parties publiques aux visiteurs du lobby.
+function broadcastPublicGames(): void {
+  io.to('lobby-browser').emit('publicGamesUpdate', { games: manager.listPublicGames() });
+}
+
 // Payload de présence (vue publique de la room).
 function lobbyPayload(game: NetworkGame): LobbyUpdatePayload {
+  const levels: (number | null)[] = [null, null, null, null];
+  for (const p of game.players) {
+    if (p.seat >= 0 && p.seat < 4) levels[p.seat] = p.level;
+  }
   return {
     gameId: game.gameId,
     status: game.status,
     players: manager.publicPlayers(game),
+    playerLevels: levels,
   };
 }
 
@@ -60,9 +110,13 @@ function lobbyPayload(game: NetworkGame): LobbyUpdatePayload {
 // ignore, leur émettre ne joindrait aucune room.
 function broadcastViews(game: NetworkGame): void {
   if (!game.state) return;
+  const levels: (number | null)[] = [null, null, null, null];
+  for (const p of game.players) {
+    if (p.seat >= 0 && p.seat < 4) levels[p.seat] = p.level;
+  }
   for (const player of game.players) {
     if (player.isBot) continue;
-    const view = buildPlayerView(game.state, player.seat, game.turnStartedAt);
+    const view = buildPlayerView(game.state, player.seat, game.turnStartedAt, levels);
     io.to(player.socketId).emit("gameStateUpdate", view);
   }
 }
@@ -122,9 +176,22 @@ function scheduleTurnTimer(game: NetworkGame): void {
       );
     }
 
+    persistIfFinished(game);
     scheduleTurnTimer(game);
     broadcastViews(game);
   }, delay);
+}
+
+// Persiste le résultat si la partie vient de se terminer (idempotent via alreadyPersisted).
+function persistIfFinished(game: NetworkGame): void {
+  if (!game.state || game.state.phase !== 'finished') return;
+  if (game.alreadyPersisted) return;
+  if (!db) return; // mode dégradé sans BDD
+  game.alreadyPersisted = true;
+  saveGameResult(db, game, game.state).catch((e: unknown) => {
+    console.error(`💾 Erreur persistance partie ${game.gameId} :`, (e as Error).message);
+    // Ne pas reset alreadyPersisted : évite les tentatives répétées si la BDD est down.
+  });
 }
 
 // Transforme une exception en gameError ciblé (jamais de crash serveur).
@@ -171,7 +238,9 @@ io.on("connection", (socket) => {
     // sur "Joueur N" pour tout le monde.
     socket.emit("lobbyUpdate", lobbyPayload(game));
     if (game.state) {
-      socket.emit("gameStateUpdate", buildPlayerView(game.state, seat, game.turnStartedAt));
+      const lvls: (number | null)[] = [null, null, null, null];
+      for (const p of game.players) { if (p.seat >= 0 && p.seat < 4) lvls[p.seat] = p.level; }
+      socket.emit("gameStateUpdate", buildPlayerView(game.state, seat, game.turnStartedAt, lvls));
     }
     console.log(`🔄 Reconnexion silencieuse : "${pseudo}" → ${game.gameId} (siège ${seat})`);
   } else if (hasClientSessionId(socket)) {
@@ -185,35 +254,51 @@ io.on("connection", (socket) => {
 
   socket.emit("welcome", { message: "Connecté au serveur Joker !" });
 
+  // ── Rejoindre la room lobby-browser (liste des parties publiques) ──
+  socket.on("listGames", () => {
+    socket.join('lobby-browser');
+    socket.emit('publicGamesUpdate', { games: manager.listPublicGames() });
+  });
+
   // ── Créer une partie ──
-  socket.on("createGame", ({ pseudo }) => {
-    const name = (pseudo ?? "").trim();
+  socket.on("createGame", async ({ pseudo, visibility }) => {
+    const userId = socket.data.userId ?? null;
+    const [name, level] = await Promise.all([
+      resolveUsername(userId, (pseudo ?? "").trim()),
+      resolveUserLevel(userId),
+    ]);
     if (name.length === 0) {
       socket.emit("gameError", { code: "INVALID_PAYLOAD", message: "Pseudo manquant." });
       return;
     }
-    const game = manager.createGame(name, socket.id, sessionId);
+    const vis = visibility === 'private' ? 'private' : 'public';
+    const game = manager.createGame(name, socket.id, sessionId, userId, vis, level);
+    socket.leave('lobby-browser');
     socket.join(game.gameId);
     socket.emit("gameCreated", { gameId: game.gameId, seat: 0 });
     io.to(game.gameId).emit("lobbyUpdate", lobbyPayload(game));
-    console.log(`🎲 Partie créée ${game.gameId} par "${name}"`);
+    if (vis === 'public') broadcastPublicGames();
+    console.log(`🎲 Partie ${vis} créée ${game.gameId} par "${name}"`);
   });
 
   // ── Rejoindre une partie ──
-  socket.on("joinGame", ({ gameId, pseudo }) => {
-    const name = (pseudo ?? "").trim();
-    const id = (gameId ?? "").trim().toUpperCase(); // codes insensibles à la casse
+  socket.on("joinGame", async ({ gameId, pseudo }) => {
+    const userId = socket.data.userId ?? null;
+    const [name, level] = await Promise.all([
+      resolveUsername(userId, (pseudo ?? "").trim()),
+      resolveUserLevel(userId),
+    ]);
+    const id = (gameId ?? "").trim().toUpperCase();
     if (name.length === 0 || id.length === 0) {
-      socket.emit("gameError", {
-        code: "INVALID_PAYLOAD",
-        message: "Pseudo ou identifiant de partie manquant.",
-      });
+      socket.emit("gameError", { code: "INVALID_PAYLOAD", message: "Pseudo ou identifiant de partie manquant." });
       return;
     }
     try {
-      const game = manager.joinGame(id, name, socket.id, sessionId);
+      const game = manager.joinGame(id, name, socket.id, sessionId, userId, level);
+      socket.leave('lobby-browser');
       socket.join(id);
       io.to(id).emit("lobbyUpdate", lobbyPayload(game));
+      if (game.visibility === 'public') broadcastPublicGames();
       console.log(`➕ "${name}" a rejoint ${id} (${game.players.length}/4)`);
     } catch (e) {
       socket.emit("gameError", toGameError(e));
@@ -229,10 +314,7 @@ io.on("connection", (socket) => {
       return;
     }
     if (manager.seatOf(game, socket.id) !== 0) {
-      socket.emit("gameError", {
-        code: "INVALID_PAYLOAD",
-        message: "Seul le joueur du siège 0 peut démarrer la partie.",
-      });
+      socket.emit("gameError", { code: "INVALID_PAYLOAD", message: "Seul le joueur du siège 0 peut démarrer la partie." });
       return;
     }
     try {
@@ -241,26 +323,27 @@ io.on("connection", (socket) => {
       socket.emit("gameError", toGameError(e));
       return;
     }
-    io.to(game.gameId).emit("lobbyUpdate", lobbyPayload(game)); // statut → in-progress
+    io.to(game.gameId).emit("lobbyUpdate", lobbyPayload(game));
+    if (game.visibility === 'public') broadcastPublicGames();
     scheduleTurnTimer(game);
     broadcastViews(game);
-    console.log(`🚀 Partie ${game.gameId} démarrée.`);
+    console.log(`🚀 Partie ${game.gameId} démarrée (ranked=${game.ranked}).`);
   });
 
   // ── Partie solo de test (1 humain + 3 bots, démarrage immédiat) ──
-  // Option EN PLUS du flux normal createGame/joinGame/startGame, qui
-  // reste strictement inchangé. Les bots décident côté serveur via
-  // shared/bot.ts ; broadcastViews/PlayerView restent filtrés comme
-  // d'habitude (les sièges bots n'ont simplement aucun socket à qui
-  // envoyer leur vue).
-  socket.on("startTestGame", ({ pseudo }) => {
-    const name = (pseudo ?? "").trim();
+  socket.on("startTestGame", async ({ pseudo }) => {
+    const userId = socket.data.userId ?? null;
+    const [name, level] = await Promise.all([
+      resolveUsername(userId, (pseudo ?? "").trim()),
+      resolveUserLevel(userId),
+    ]);
     if (name.length === 0) {
       socket.emit("gameError", { code: "INVALID_PAYLOAD", message: "Pseudo manquant." });
       return;
     }
-    const game = manager.createGame(name, socket.id, sessionId);
+    const game = manager.createGame(name, socket.id, sessionId, userId, 'private', level);
     manager.addBotPlayers(game);
+    socket.leave('lobby-browser');
     socket.join(game.gameId);
     try {
       manager.startGame(game);
@@ -318,6 +401,7 @@ io.on("connection", (socket) => {
       socket.emit("gameError", toGameError(e));
       return;
     }
+    persistIfFinished(game);
     scheduleTurnTimer(game); // le tour change → on relance le décompte
     broadcastViews(game);
   });
@@ -355,8 +439,10 @@ io.on("connection", (socket) => {
     manager.handleDisconnect(socket.id, ({ game, gameId, deleted }) => {
       if (game && gameId) {
         io.to(gameId).emit("lobbyUpdate", lobbyPayload(game));
+        if (game.visibility === 'public' && game.status === 'waiting') broadcastPublicGames();
       } else if (deleted && gameId) {
         console.log(`🗑️ Partie ${gameId} supprimée (vide).`);
+        broadcastPublicGames();
       }
     });
   });

@@ -14,5 +14,10 @@ export default defineConfig({
   server: {
     // Autorise le dev server à servir le dossier shared/ (hors de client/).
     fs: { allow: ['..'] },
+    // En dev local : proxy /api et /socket.io vers le serveur Express (port 3001).
+    proxy: {
+      '/api': { target: 'http://localhost:3001', changeOrigin: true },
+      '/socket.io': { target: 'http://localhost:3001', changeOrigin: true, ws: true },
+    },
   },
 })

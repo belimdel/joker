@@ -149,6 +149,12 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.jk-pseat__level {
+  font-family: var(--font-body);
+  font-size: 0.65rem;
+  color: var(--brass);
+  opacity: 0.85;
+}
 .jk-pseat__meta {
   display: flex;
   align-items: center;

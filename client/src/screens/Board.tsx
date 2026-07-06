@@ -369,6 +369,7 @@ export function Board() {
   const seatProps = (seat: number) => ({
     pos: relPos(seat, me),
     pseudo: pseudoOf(seat),
+    level: view.playerLevels?.[seat] ?? null,
     bid: view.bids[seat],
     tricksWon: view.tricksWon[seat],
     roundPhase: view.roundPhase,

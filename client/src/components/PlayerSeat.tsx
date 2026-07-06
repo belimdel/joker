@@ -8,6 +8,7 @@ export type SeatPos = "self" | "left" | "top" | "right";
 export type PlayerSeatProps = {
   pos: SeatPos;
   pseudo: string;
+  level?: number | null; // niveau du joueur (null = invité/bot)
   bid: number | null; // enchère (null = pas encore annoncée)
   tricksWon: number; // plis remportés cette manche
   roundPhase: RoundPhase;
@@ -26,6 +27,7 @@ export type PlayerSeatProps = {
 export function PlayerSeat({
   pos,
   pseudo,
+  level,
   bid,
   tricksWon,
   roundPhase,
@@ -64,6 +66,7 @@ export function PlayerSeat({
         <span className="jk-pseat__name">
           {pseudo}
           {isMe ? " (vous)" : ""}
+          {level != null && <span className="jk-pseat__level"> niv.{level}</span>}
         </span>
 
         <div className="jk-pseat__meta">

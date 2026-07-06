@@ -4,6 +4,7 @@ import type {
   GameStatus,
   PlayerPublic,
   GameErrorCode,
+  PublicGameSummary,
 } from "../../shared/events";
 
 export const MAX_PLAYERS = 4;
@@ -22,10 +23,9 @@ export type NetworkPlayer = {
   sessionId: string;
   pseudo: string;
   seat: number; // 0-3
-  // Siège occupé par un bot (mode "partie solo de test") : pas de socket
-  // réel, jamais indexé dans socketToGame/sessionToGame, ne se déconnecte
-  // jamais. Absent (undefined) pour un joueur humain.
   isBot?: boolean;
+  userId: string | null; // null = invité ou bot
+  level: number | null;  // null = invité, bot, ou BDD indisponible
 };
 
 // Résultat d'une suppression différée (grace period écoulée) ou immédiate.
@@ -46,17 +46,15 @@ export type NetworkGame = {
   gameId: string;
   players: NetworkPlayer[];
   status: GameStatus;
-  // Emplacement du futur état de jeu (shared/game.ts). Reste null tant
-  // que la partie n'a pas démarré (branché à l'objectif suivant).
   state: GameState | null;
-
-  // ── Timer de tour (15s, cf. shared/round.ts TURN_DURATION_MS) ──
-  // turnStartedAt : timestamp (Date.now()) du début du tour courant,
-  // envoyé dans PlayerView pour que le client affiche la barre.
-  // turnTimer : le setTimeout en cours (auto-jeu si non rejoué à temps),
-  // reprogrammé à chaque changement de currentPlayer (index.ts).
   turnStartedAt: number;
   turnTimer: ReturnType<typeof setTimeout> | null;
+  // V5 : lobby global et persistance
+  visibility: 'public' | 'private';
+  ranked: boolean;       // figé au démarrage effectif (4 humains = true)
+  startedAt: number | null;
+  createdAt: number;
+  alreadyPersisted: boolean; // garde contre double-écriture BDD (LOT 5)
 };
 
 // Erreur métier du manager, avec un code exploitable côté réseau.
@@ -86,15 +84,27 @@ export class GameManager {
   private disconnectTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
   // ── Créer une partie : le créateur prend le siège 0 ──
-  createGame(pseudo: string, socketId: string, sessionId: string): NetworkGame {
+  createGame(
+    pseudo: string,
+    socketId: string,
+    sessionId: string,
+    userId: string | null = null,
+    visibility: 'public' | 'private' = 'public',
+    level: number | null = null,
+  ): NetworkGame {
     const gameId = this.generateUniqueId();
     const game: NetworkGame = {
       gameId,
-      players: [{ socketId, sessionId, pseudo, seat: 0 }],
+      players: [{ socketId, sessionId, pseudo, seat: 0, userId, level }],
       status: "waiting",
       state: null,
       turnStartedAt: 0,
       turnTimer: null,
+      visibility,
+      ranked: false,
+      startedAt: null,
+      createdAt: Date.now(),
+      alreadyPersisted: false,
     };
     this.games.set(gameId, game);
     this.socketToGame.set(socketId, gameId);
@@ -103,26 +113,26 @@ export class GameManager {
   }
 
   // ── Rejoindre une partie existante ──
-  // Lève GameManagerError si la partie est introuvable ou complète.
-  joinGame(gameId: string, pseudo: string, socketId: string, sessionId: string): NetworkGame {
+  joinGame(
+    gameId: string,
+    pseudo: string,
+    socketId: string,
+    sessionId: string,
+    userId: string | null = null,
+    level: number | null = null,
+  ): NetworkGame {
     const game = this.games.get(gameId);
     if (!game) {
-      throw new GameManagerError(
-        "GAME_NOT_FOUND",
-        `Partie introuvable : ${gameId}`
-      );
+      throw new GameManagerError("GAME_NOT_FOUND", `Partie introuvable : ${gameId}`);
     }
     if (game.status !== "waiting") {
-      throw new GameManagerError(
-        "GAME_IN_PROGRESS",
-        `La partie ${gameId} a déjà démarré.`
-      );
+      throw new GameManagerError("GAME_IN_PROGRESS", `La partie ${gameId} a déjà démarré.`);
     }
     if (game.players.length >= MAX_PLAYERS) {
       throw new GameManagerError("GAME_FULL", `La partie ${gameId} est complète.`);
     }
     const seat = this.lowestFreeSeat(game);
-    game.players.push({ socketId, sessionId, pseudo, seat });
+    game.players.push({ socketId, sessionId, pseudo, seat, userId, level });
     this.socketToGame.set(socketId, gameId);
     this.sessionToGame.set(sessionId, gameId);
     return game;
@@ -225,8 +235,6 @@ export class GameManager {
   }
 
   // ── Démarrer la partie ──
-  // Exige MAX_PLAYERS joueurs. Crée le GameState (shared/game.ts), le
-  // range dans le slot `state`, et passe le statut à "in-progress".
   startGame(game: NetworkGame): void {
     if (game.players.length !== MAX_PLAYERS) {
       throw new GameManagerError(
@@ -236,6 +244,28 @@ export class GameManager {
     }
     game.state = createGame(MAX_PLAYERS);
     game.status = "in-progress";
+    game.startedAt = Date.now();
+    // ranked = tous les sièges sont humains (aucun isBot)
+    game.ranked = game.players.every(p => !p.isBot && p.userId !== null);
+  }
+
+  // ── Liste des parties publiques joignables ──
+  listPublicGames(): PublicGameSummary[] {
+    const result: PublicGameSummary[] = [];
+    for (const game of this.games.values()) {
+      if (game.visibility !== 'public') continue;
+      if (game.status !== 'waiting') continue;
+      if (game.players.length >= MAX_PLAYERS) continue;
+      const host = game.players.find(p => p.seat === 0);
+      if (!host) continue;
+      result.push({
+        roomCode: game.gameId,
+        hostUsername: host.pseudo,
+        playerCount: game.players.length,
+        createdAt: game.createdAt,
+      });
+    }
+    return result.sort((a, b) => b.createdAt - a.createdAt);
   }
 
   // ── Compléter les sièges libres avec des bots (mode solo de test) ──
@@ -254,6 +284,8 @@ export class GameManager {
         pseudo: `Bot ${botNumber}`,
         seat,
         isBot: true,
+        userId: null,
+        level: null,
       });
       botNumber++;
     }
