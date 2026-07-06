@@ -278,7 +278,23 @@ const TRICK_DISPLAY_MS = TRICK_PAUSE_MS + TRICK_SLIDE_MS;
 //  Le plateau de jeu
 // ════════════════════════════════════════════════════════════════
 export function Board() {
-  const { view, lobby, error, clearError, placeBid, playCard, leave } = useGame();
+  const { view, lobby, error, clearError, placeBid, playCard, leaveGame } = useGame();
+
+  // Quitter une partie EN COURS : on confirme (les tours seront joués
+  // automatiquement en attendant le retour). Sur l'écran de fin, pas de
+  // confirmation (rien à jouer) — cf. onReplay.
+  const confirmLeave = () => {
+    if (
+      view &&
+      view.gamePhase !== "finished" &&
+      !window.confirm(
+        "Quitter la partie ? Vos tours seront joués automatiquement jusqu'à votre retour.",
+      )
+    ) {
+      return;
+    }
+    leaveGame();
+  };
 
   const [pendingJoker, setPendingJoker] = useState<Card | null>(null);
   const [showScores, setShowScores] = useState(false);
@@ -348,7 +364,7 @@ export function Board() {
 
   // Fin de partie : classement final (la dernière vue a gamePhase "finished").
   if (view.gamePhase === "finished") {
-    return <GameOver view={view} pseudoOf={pseudoOf} onReplay={leave} />;
+    return <GameOver view={view} pseudoOf={pseudoOf} onReplay={leaveGame} />;
   }
 
   // Clic sur une carte de ma main : un Joker ouvre la modale, sinon on joue.
@@ -385,7 +401,7 @@ export function Board() {
   return (
     <div className="jk-table">
       <header className="jk-table__header">
-        <button type="button" className="jk-btn jk-btn--ghost jk-table__leave" onClick={leave}>
+        <button type="button" className="jk-btn jk-btn--ghost jk-table__leave" onClick={confirmLeave}>
           Quitter
         </button>
         <div className="jk-table__deal">

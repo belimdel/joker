@@ -115,9 +115,20 @@ function broadcastViews(game: NetworkGame): void {
     if (p.seat >= 0 && p.seat < 4) levels[p.seat] = p.level;
   }
   for (const player of game.players) {
-    if (player.isBot) continue;
+    // Les bots n'ont pas de socket ; les joueurs "partis" (leaveGame en cours
+    // de partie) sont à l'accueil et ne doivent pas recevoir de vue de jeu.
+    if (player.isBot || player.leftAt !== null) continue;
     const view = buildPlayerView(game.state, player.seat, game.turnStartedAt, levels);
     io.to(player.socketId).emit("gameStateUpdate", view);
+  }
+}
+
+// Notifie les joueurs "partis" (leaveGame en cours de partie) que le verrou
+// « partie en cours » tombe : la partie vient de se terminer. Emit ciblé.
+function notifyLockLifted(game: NetworkGame): void {
+  for (const p of game.players) {
+    if (p.isBot || p.leftAt === null) continue;
+    io.to(p.socketId).emit("activeGameUpdate", { roomCode: null });
   }
 }
 
@@ -185,6 +196,12 @@ function scheduleTurnTimer(game: NetworkGame): void {
 // Persiste le résultat si la partie vient de se terminer (idempotent via alreadyPersisted).
 function persistIfFinished(game: NetworkGame): void {
   if (!game.state || game.state.phase !== 'finished') return;
+  // Le verrou « partie en cours » tombe dès la fin : prévenir une seule fois
+  // les joueurs partis, indépendamment de la persistance BDD (mode dégradé).
+  if (!game.finishedNotified) {
+    game.finishedNotified = true;
+    notifyLockLifted(game);
+  }
   if (game.alreadyPersisted) return;
   if (!db) return; // mode dégradé sans BDD
   game.alreadyPersisted = true;
@@ -231,18 +248,28 @@ io.on("connection", (socket) => {
   const reconnected = manager.reconnect(sessionId, socket.id);
   if (reconnected) {
     const { game, seat, pseudo } = reconnected;
-    socket.join(game.gameId);
-    socket.emit("sessionRestored", { gameId: game.gameId, seat, pseudo });
-    // Toujours réémettre le lobby (même en partie en cours) : sans ça,
-    // le client garde lobby=null après un refresh et pseudoOf() retombe
-    // sur "Joueur N" pour tout le monde.
-    socket.emit("lobbyUpdate", lobbyPayload(game));
-    if (game.state) {
-      const lvls: (number | null)[] = [null, null, null, null];
-      for (const p of game.players) { if (p.seat >= 0 && p.seat < 4) lvls[p.seat] = p.level; }
-      socket.emit("gameStateUpdate", buildPlayerView(game.state, seat, game.turnStartedAt, lvls));
+    const player = game.players.find((p) => p.seat === seat);
+    const finished = game.state?.phase === "finished";
+    if (game.status === "in-progress" && !finished && player?.leftAt != null) {
+      // Joueur "parti" d'une partie démarrée (leaveGame) qui recharge la page :
+      // on ne le renvoie PAS sur le plateau. On lui rappelle simplement le
+      // verrou (Home reste verrouillé avec le bouton Rejoindre).
+      socket.emit("activeGameUpdate", { roomCode: game.gameId });
+      console.log(`🔒 Reconnexion "parti" : "${pseudo}" → verrou ${game.gameId}`);
+    } else {
+      socket.join(game.gameId);
+      socket.emit("sessionRestored", { gameId: game.gameId, seat, pseudo });
+      // Toujours réémettre le lobby (même en partie en cours) : sans ça,
+      // le client garde lobby=null après un refresh et pseudoOf() retombe
+      // sur "Joueur N" pour tout le monde.
+      socket.emit("lobbyUpdate", lobbyPayload(game));
+      if (game.state) {
+        const lvls: (number | null)[] = [null, null, null, null];
+        for (const p of game.players) { if (p.seat >= 0 && p.seat < 4) lvls[p.seat] = p.level; }
+        socket.emit("gameStateUpdate", buildPlayerView(game.state, seat, game.turnStartedAt, lvls));
+      }
+      console.log(`🔄 Reconnexion silencieuse : "${pseudo}" → ${game.gameId} (siège ${seat})`);
     }
-    console.log(`🔄 Reconnexion silencieuse : "${pseudo}" → ${game.gameId} (siège ${seat})`);
   } else if (hasClientSessionId(socket)) {
     // Le client a fourni un sessionId, mais il ne correspond à aucune
     // partie connue (ex. redémarrage serveur) : on prévient le client
@@ -263,6 +290,12 @@ io.on("connection", (socket) => {
   // ── Créer une partie ──
   socket.on("createGame", async ({ pseudo, visibility }) => {
     const userId = socket.data.userId ?? null;
+    // Verrou : une seule partie démarrée en cours par identité.
+    const active = manager.activeGameFor(userId, sessionId);
+    if (active) {
+      socket.emit("gameError", { code: "ACTIVE_GAME", message: `Vous avez déjà une partie en cours (${active.gameId}).`, roomCode: active.gameId });
+      return;
+    }
     const [name, level] = await Promise.all([
       resolveUsername(userId, (pseudo ?? "").trim()),
       resolveUserLevel(userId),
@@ -293,11 +326,29 @@ io.on("connection", (socket) => {
       socket.emit("gameError", { code: "INVALID_PAYLOAD", message: "Pseudo ou identifiant de partie manquant." });
       return;
     }
+    // Verrou : interdit de rejoindre une AUTRE partie tant qu'une partie
+    // démarrée est en cours (rejoindre la sienne reste permis → rattachement).
+    const active = manager.activeGameFor(userId, sessionId);
+    if (active && active.gameId !== id) {
+      socket.emit("gameError", { code: "ACTIVE_GAME", message: `Vous avez déjà une partie en cours (${active.gameId}).`, roomCode: active.gameId });
+      return;
+    }
     try {
       const game = manager.joinGame(id, name, socket.id, sessionId, userId, level);
       socket.leave('lobby-browser');
       socket.join(id);
+      // Le siège est résolu par le serveur (rattachement d'identité inclus) :
+      // on informe le joueur de SON siège (sessionRestored fixe isHost/pseudo
+      // côté client) puis on diffuse la présence à la room.
+      const seat = manager.seatOf(game, socket.id) ?? 0;
+      socket.emit("sessionRestored", { gameId: game.gameId, seat, pseudo: name });
       io.to(id).emit("lobbyUpdate", lobbyPayload(game));
+      // Rattachement à une partie déjà démarrée (la sienne) : renvoyer la vue.
+      if (game.state && game.state.phase !== "finished") {
+        const lvls: (number | null)[] = [null, null, null, null];
+        for (const p of game.players) { if (p.seat >= 0 && p.seat < 4) lvls[p.seat] = p.level; }
+        socket.emit("gameStateUpdate", buildPlayerView(game.state, seat, game.turnStartedAt, lvls));
+      }
       if (game.visibility === 'public') broadcastPublicGames();
       console.log(`➕ "${name}" a rejoint ${id} (${game.players.length}/4)`);
     } catch (e) {
@@ -333,6 +384,12 @@ io.on("connection", (socket) => {
   // ── Partie solo de test (1 humain + 3 bots, démarrage immédiat) ──
   socket.on("startTestGame", async ({ pseudo }) => {
     const userId = socket.data.userId ?? null;
+    // Verrou : pas de partie solo tant qu'une partie démarrée est en cours.
+    const active = manager.activeGameFor(userId, sessionId);
+    if (active) {
+      socket.emit("gameError", { code: "ACTIVE_GAME", message: `Vous avez déjà une partie en cours (${active.gameId}).`, roomCode: active.gameId });
+      return;
+    }
     const [name, level] = await Promise.all([
       resolveUsername(userId, (pseudo ?? "").trim()),
       resolveUserLevel(userId),
@@ -356,6 +413,55 @@ io.on("connection", (socket) => {
     scheduleTurnTimer(game);
     broadcastViews(game);
     console.log(`🤖 Partie solo de test ${game.gameId} démarrée par "${name}".`);
+  });
+
+  // ── Quitter la partie (siège résolu par le serveur depuis le socket) ──
+  socket.on("leaveGame", () => {
+    const { game, gameId, deleted, keepsSeat } = manager.leaveGame(socket.id);
+    if (!gameId) return; // le socket n'était dans aucune partie
+    socket.leave(gameId);
+
+    if (keepsSeat && game) {
+      // Partie démarrée : le siège reste (le bot joue), le joueur est parti à
+      // l'accueil → on lui pose le verrou « partie en cours ».
+      socket.emit("activeGameUpdate", { roomCode: game.gameId });
+      console.log(`🚪 "${socket.id}" a quitté ${gameId} (siège conservé, verrou).`);
+      return;
+    }
+
+    // Lobby ou partie terminée : le verrou (s'il existait) tombe.
+    socket.emit("activeGameUpdate", { roomCode: null });
+    if (deleted) {
+      const stale = manager.getGame(gameId);
+      if (stale) clearTurnTimer(stale);
+      console.log(`🗑️ Partie ${gameId} supprimée (quittée, vide).`);
+      broadcastPublicGames();
+    } else if (game) {
+      io.to(gameId).emit("lobbyUpdate", lobbyPayload(game));
+      if (game.visibility === 'public' && game.status === 'waiting') broadcastPublicGames();
+    }
+  });
+
+  // ── Revenir dans une partie démarrée qu'on avait quittée (Rejoindre) ──
+  socket.on("resumeGame", () => {
+    const resumed = manager.resumeBySession(sessionId, socket.id);
+    if (!resumed) {
+      // Plus de partie à rejoindre (terminée/détruite) : lever le verrou.
+      socket.emit("activeGameUpdate", { roomCode: null });
+      socket.emit("gameError", { code: "GAME_NOT_FOUND", message: "Cette partie n'existe plus." });
+      return;
+    }
+    const { game, seat, pseudo } = resumed;
+    socket.join(game.gameId);
+    socket.emit("activeGameUpdate", { roomCode: null });
+    socket.emit("sessionRestored", { gameId: game.gameId, seat, pseudo });
+    socket.emit("lobbyUpdate", lobbyPayload(game));
+    if (game.state) {
+      const lvls: (number | null)[] = [null, null, null, null];
+      for (const p of game.players) { if (p.seat >= 0 && p.seat < 4) lvls[p.seat] = p.level; }
+      socket.emit("gameStateUpdate", buildPlayerView(game.state, seat, game.turnStartedAt, lvls));
+    }
+    console.log(`↩️ Retour de "${pseudo}" dans ${game.gameId} (siège ${seat}).`);
   });
 
   // ── Enchérir ──

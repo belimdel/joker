@@ -87,12 +87,22 @@ export type GameErrorCode =
   | "NOT_READY" // pas assez de joueurs pour démarrer
   | "NOT_STARTED" // action de jeu sur une partie non démarrée
   | "ILLEGAL_MOVE" // coup refusé par la logique (hors-tour, renonce, etc.)
-  | "GAME_IN_PROGRESS"; // join frais refusé : la partie a déjà démarré
+  | "GAME_IN_PROGRESS" // join frais refusé : la partie a déjà démarré
+  | "ACTIVE_GAME"; // verrou : cette identité a déjà une partie DÉMARRÉE en cours
 
 // Erreur renvoyée au SEUL demandeur.
 export type GameErrorPayload = {
   code: GameErrorCode;
   message: string;
+  // Uniquement pour ACTIVE_GAME : le code de la partie en cours à rejoindre.
+  roomCode?: string;
+};
+
+// Verrou « partie en cours » : diffusé au SEUL joueur concerné. roomCode non
+// null = une partie démarrée l'attend (Home verrouillé + Rejoindre) ; null =
+// verrou levé (partie terminée/quittée) → Home redevient normal.
+export type ActiveGamePayload = {
+  roomCode: string | null;
 };
 
 // Reconnexion silencieuse : renvoyé au SEUL socket qui revient (refresh de
@@ -108,6 +118,12 @@ export type SessionRestoredPayload = {
 export interface ClientToServerEvents {
   createGame: (payload: CreateGamePayload) => void;
   joinGame: (payload: JoinGamePayload) => void;
+  // Quitter la partie. Le SERVEUR résout le siège depuis le socket (jamais
+  // depuis un payload) : en lobby → libère le siège ; en partie démarrée →
+  // garde le siège (le bot de timeout joue), le joueur pourra revenir.
+  leaveGame: () => void;
+  // Revenir dans une partie démarrée qu'on avait quittée (bouton Rejoindre).
+  resumeGame: () => void;
   startGame: () => void; // démarré par le joueur du siège 0
   // Crée une partie solo de test : siège 0 = l'appelant, sièges 1-3 = des
   // bots, démarrage immédiat (cf. GameManager.addBotPlayers).
@@ -134,4 +150,7 @@ export interface ServerToClientEvents {
   sessionExpired: () => void;
   // Liste des parties publiques joignables (diffusée à la room lobby-browser).
   publicGamesUpdate: (payload: { games: PublicGameSummary[] }) => void;
+  // Verrou « partie en cours » (emit ciblé) : informe le joueur qu'une partie
+  // démarrée l'attend (roomCode) ou que le verrou est levé (null).
+  activeGameUpdate: (payload: ActiveGamePayload) => void;
 }

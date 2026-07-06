@@ -9,7 +9,7 @@ type HomeProps = {
 };
 
 export function Home({ onViewProfile, onViewLeaderboard }: HomeProps) {
-  const { createGame, joinGame, startTestGame, error, notice, connected, publicGames } = useGame();
+  const { createGame, joinGame, startTestGame, error, notice, connected, publicGames, activeGameRoom, rejoin } = useGame();
   const { user, authLoading, showLogin, showRegister, logout } = useAuth();
   const [mode, setMode] = useState<"create" | "join">("create");
   const [pseudo, setPseudo] = useState("");
@@ -19,8 +19,11 @@ export function Home({ onViewProfile, onViewLeaderboard }: HomeProps) {
   const effectivePseudo = user ? user.username : pseudo;
   const cleanPseudo = effectivePseudo.trim();
   const cleanCode = code.trim();
-  const canCreate = cleanPseudo.length > 0 && connected;
-  const canJoin = cleanPseudo.length > 0 && cleanCode.length > 0 && connected;
+  // Verrou « partie en cours » : tant qu'une partie démarrée nous attend, on
+  // ne peut que la rejoindre (création/join/solo désactivés).
+  const locked = activeGameRoom != null;
+  const canCreate = cleanPseudo.length > 0 && connected && !locked;
+  const canJoin = cleanPseudo.length > 0 && cleanCode.length > 0 && connected && !locked;
 
   return (
     <div className="jk-home">
@@ -55,6 +58,23 @@ export function Home({ onViewProfile, onViewLeaderboard }: HomeProps) {
       )}
 
       <div className="jk-panel jk-home__panel jk-fade-up">
+        {locked && (
+          <div className="jk-active-game">
+            <div className="jk-active-game__text">
+              <strong>Partie en cours</strong>
+              <span>Vous avez une partie démarrée (table {activeGameRoom}).</span>
+            </div>
+            <button
+              type="button"
+              className="jk-btn jk-btn--primary jk-btn--sm"
+              onClick={rejoin}
+              disabled={!connected}
+            >
+              Rejoindre
+            </button>
+          </div>
+        )}
+
         <div className="jk-tabs">
           <button
             className={`jk-tab ${mode === "create" ? "is-active" : ""}`}
@@ -116,7 +136,7 @@ export function Home({ onViewProfile, onViewLeaderboard }: HomeProps) {
                       key={g.roomCode}
                       type="button"
                       className="jk-public-game-row"
-                      disabled={!cleanPseudo || !connected}
+                      disabled={!cleanPseudo || !connected || locked}
                       onClick={() => joinGame(g.roomCode, effectivePseudo)}
                     >
                       <span className="jk-public-game__host">{g.hostUsername}</span>

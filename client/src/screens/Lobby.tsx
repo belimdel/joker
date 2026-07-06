@@ -3,7 +3,7 @@ import { useGame } from "../GameContext";
 import "./screens.css";
 
 export function Lobby() {
-  const { lobby, isHost, startGame, leave } = useGame();
+  const { lobby, isHost, startGame, leaveGame } = useGame();
   const [copied, setCopied] = useState(false);
 
   if (!lobby) return null;
@@ -73,7 +73,7 @@ export function Lobby() {
           </div>
         )}
 
-        <button className="jk-btn jk-btn--ghost jk-btn--block" onClick={leave}>
+        <button className="jk-btn jk-btn--ghost jk-btn--block" onClick={leaveGame}>
           Quitter
         </button>
       </div>

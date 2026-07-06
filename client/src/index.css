@@ -244,6 +244,33 @@ h3 {
   font-size: 0.92rem;
 }
 
+/* ─── Bandeau « partie en cours » (verrou) sur l'accueil ──────── */
+.jk-active-game {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem 0.9rem;
+  margin-bottom: 1rem;
+  border-radius: 12px;
+  background: rgba(216, 177, 96, 0.12);
+  border: 1px solid rgba(216, 177, 96, 0.55);
+}
+.jk-active-game__text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.jk-active-game__text strong {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  color: var(--brass, #d8b160);
+}
+.jk-active-game__text span {
+  font-size: 0.82rem;
+  color: var(--text-dim, rgba(244, 234, 208, 0.66));
+}
+
 /* ─── Animations ──────────────────────────────────────────────── */
 @keyframes jk-fade-up {
   from {

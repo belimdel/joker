@@ -26,6 +26,11 @@ export type NetworkPlayer = {
   isBot?: boolean;
   userId: string | null; // null = invité ou bot
   level: number | null;  // null = invité, bot, ou BDD indisponible
+  // Timestamp du départ de l'INTERFACE d'une partie démarrée (leaveGame en
+  // cours de partie). null = joueur présent. Un joueur "parti" garde son
+  // siège (le bot de timeout joue ses tours) et ne reçoit plus de vue de jeu ;
+  // il peut revenir via resumeBySession. Toujours null en lobby.
+  leftAt: number | null;
 };
 
 // Résultat d'une suppression différée (grace period écoulée) ou immédiate.
@@ -55,6 +60,7 @@ export type NetworkGame = {
   startedAt: number | null;
   createdAt: number;
   alreadyPersisted: boolean; // garde contre double-écriture BDD (LOT 5)
+  finishedNotified: boolean; // garde : verrou « partie en cours » levé une fois
 };
 
 // Erreur métier du manager, avec un code exploitable côté réseau.
@@ -95,7 +101,7 @@ export class GameManager {
     const gameId = this.generateUniqueId();
     const game: NetworkGame = {
       gameId,
-      players: [{ socketId, sessionId, pseudo, seat: 0, userId, level }],
+      players: [{ socketId, sessionId, pseudo, seat: 0, userId, level, leftAt: null }],
       status: "waiting",
       state: null,
       turnStartedAt: 0,
@@ -105,6 +111,7 @@ export class GameManager {
       startedAt: null,
       createdAt: Date.now(),
       alreadyPersisted: false,
+      finishedNotified: false,
     };
     this.games.set(gameId, game);
     this.socketToGame.set(socketId, gameId);
@@ -125,6 +132,31 @@ export class GameManager {
     if (!game) {
       throw new GameManagerError("GAME_NOT_FOUND", `Partie introuvable : ${gameId}`);
     }
+
+    // ── Unicité d'identité par partie (fix anti « 4 sièges pour la même
+    // personne ») : l'identité = userId si authentifié, sinon le sessionId de
+    // partie (invité). Si cette identité occupe DÉJÀ un siège de cette partie
+    // (connectée ou en grace period), on RATTACHE le socket à ce siège — même
+    // chemin que la reconnexion silencieuse — au lieu de créer un doublon.
+    const existing = this.findSeatByIdentity(game, userId, sessionId);
+    if (existing) {
+      const oldTimer = this.disconnectTimers.get(existing.sessionId);
+      if (oldTimer) {
+        clearTimeout(oldTimer);
+        this.disconnectTimers.delete(existing.sessionId);
+      }
+      this.socketToGame.delete(existing.socketId);
+      if (existing.sessionId !== sessionId) this.sessionToGame.delete(existing.sessionId);
+      existing.socketId = socketId;
+      existing.sessionId = sessionId;
+      existing.pseudo = pseudo;
+      if (level !== null) existing.level = level;
+      existing.leftAt = null; // de retour dans l'interface
+      this.socketToGame.set(socketId, gameId);
+      this.sessionToGame.set(sessionId, gameId);
+      return game;
+    }
+
     if (game.status !== "waiting") {
       throw new GameManagerError("GAME_IN_PROGRESS", `La partie ${gameId} a déjà démarré.`);
     }
@@ -132,10 +164,110 @@ export class GameManager {
       throw new GameManagerError("GAME_FULL", `La partie ${gameId} est complète.`);
     }
     const seat = this.lowestFreeSeat(game);
-    game.players.push({ socketId, sessionId, pseudo, seat, userId, level });
+    game.players.push({ socketId, sessionId, pseudo, seat, userId, level, leftAt: null });
     this.socketToGame.set(socketId, gameId);
     this.sessionToGame.set(sessionId, gameId);
     return game;
+  }
+
+  // Siège occupé par une identité donnée dans une partie (undefined sinon).
+  // Identité = userId si authentifié, sinon sessionId de partie (invité). Les
+  // sièges bots n'ont pas d'identité humaine et sont toujours ignorés.
+  private findSeatByIdentity(
+    game: NetworkGame,
+    userId: string | null,
+    sessionId: string,
+  ): NetworkPlayer | undefined {
+    const identity = userId ?? sessionId;
+    return game.players.find((p) => !p.isBot && (p.userId ?? p.sessionId) === identity);
+  }
+
+  // ── Verrou « partie en cours » ──
+  // La partie DÉMARRÉE et NON TERMINÉE où cette identité occupe un siège, ou
+  // null. Sert à interdire de créer/rejoindre/lancer une AUTRE partie tant
+  // qu'une partie est en cours (le verrou tombe quand elle se termine).
+  activeGameFor(userId: string | null, sessionId: string): NetworkGame | null {
+    const identity = userId ?? sessionId;
+    for (const game of this.games.values()) {
+      if (game.status !== "in-progress") continue;
+      if (game.state?.phase === "finished") continue;
+      const has = game.players.some(
+        (p) => !p.isBot && (p.userId ?? p.sessionId) === identity,
+      );
+      if (has) return game;
+    }
+    return null;
+  }
+
+  // ── Quitter la partie (événement explicite leaveGame) ──
+  // Le siège est résolu depuis le socket (autorité). Deux cas :
+  //  • lobby (pré-démarrage) OU partie terminée → on LIBÈRE le siège
+  //    complètement (comme removePlayer) ; partie vide → détruite.
+  //  • partie démarrée en cours → on GARDE le siège (le bot de timeout jouera
+  //    ses tours) et on marque le joueur "parti" (leftAt). Le sessionId reste
+  //    indexé pour permettre le retour via resumeBySession.
+  leaveGame(socketId: string): {
+    game: NetworkGame | null;
+    gameId: string | null;
+    deleted: boolean;
+    keepsSeat: boolean;
+  } {
+    const gameId = this.socketToGame.get(socketId);
+    if (!gameId) return { game: null, gameId: null, deleted: false, keepsSeat: false };
+
+    const game = this.games.get(gameId);
+    if (!game) {
+      this.socketToGame.delete(socketId);
+      return { game: null, gameId, deleted: false, keepsSeat: false };
+    }
+    const player = game.players.find((p) => p.socketId === socketId);
+    if (!player) return { game, gameId, deleted: false, keepsSeat: false };
+
+    const started = game.status !== "waiting";
+    const finished = game.state?.phase === "finished";
+
+    if (started && !finished) {
+      player.leftAt = Date.now();
+      this.socketToGame.delete(socketId);
+      return { game, gameId, deleted: false, keepsSeat: true };
+    }
+
+    // Lobby ou partie terminée : libération complète du siège.
+    this.socketToGame.delete(socketId);
+    this.sessionToGame.delete(player.sessionId);
+    const t = this.disconnectTimers.get(player.sessionId);
+    if (t) {
+      clearTimeout(t);
+      this.disconnectTimers.delete(player.sessionId);
+    }
+    game.players = game.players.filter((p) => p.socketId !== socketId);
+    if (game.players.length === 0) {
+      this.games.delete(gameId);
+      return { game: null, gameId, deleted: true, keepsSeat: false };
+    }
+    return { game, gameId, deleted: false, keepsSeat: false };
+  }
+
+  // ── Retour dans une partie démarrée qu'on avait quittée (bouton Rejoindre) ──
+  // Comme reconnect(), mais efface leftAt : le joueur RÉINTÈGRE l'interface.
+  resumeBySession(sessionId: string, newSocketId: string): ReconnectResult | null {
+    const gameId = this.sessionToGame.get(sessionId);
+    if (!gameId) return null;
+    const game = this.games.get(gameId);
+    const player = game?.players.find((p) => p.sessionId === sessionId);
+    if (!game || !player) {
+      this.sessionToGame.delete(sessionId);
+      return null;
+    }
+    const timer = this.disconnectTimers.get(sessionId);
+    if (timer) {
+      clearTimeout(timer);
+      this.disconnectTimers.delete(sessionId);
+    }
+    player.leftAt = null;
+    player.socketId = newSocketId;
+    this.socketToGame.set(newSocketId, gameId);
+    return { game, seat: player.seat, pseudo: player.pseudo };
   }
 
   // ── Retirer un joueur (déconnexion) ──
@@ -286,6 +418,7 @@ export class GameManager {
         isBot: true,
         userId: null,
         level: null,
+        leftAt: null,
       });
       botNumber++;
     }
