@@ -73,13 +73,14 @@ async function issueVerificationCode(
         lastSentAt: now,
       },
     });
-  // Le code est déjà stocké : un échec d'envoi ne doit pas rendre le compte
-  // inutilisable (l'utilisateur pourra demander un renvoi). On log, sans jeter.
-  try {
-    await mailService.sendVerificationCode(email, code);
-  } catch (e) {
+  // Le code est déjà stocké : la réponse HTTP ne doit PAS attendre le SMTP
+  // (fire-and-forget, timeouts bornés dans MailService). Le .catch attaché
+  // synchronement garantit qu'aucune rejection non gérée ne peut crasher le
+  // process. En cas d'échec : log serveur, la réponse reste un succès (anti-
+  // énumération), l'utilisateur dispose du bouton « renvoyer le code ».
+  void mailService.sendVerificationCode(email, code).catch((e: unknown) => {
     console.error(`✉️  Envoi du code échoué pour ${email} :`, (e as Error).message);
-  }
+  });
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────

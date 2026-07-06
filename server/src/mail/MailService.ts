@@ -4,6 +4,7 @@
 //   • Console (mode dégradé) sinon → le code est LOGGÉ, pratique en dev local
 //     sans SMTP. Le code n'est JAMAIS loggué en clair hors de ce mode dégradé.
 import nodemailer, { type Transporter } from 'nodemailer';
+import { resolve4 } from 'dns/promises';
 
 export interface MailService {
   // Envoie le code de vérification à 6 chiffres à l'adresse donnée.
@@ -25,23 +26,57 @@ function verificationEmail(code: string): { subject: string; text: string } {
 }
 
 // ── Implémentation SMTP Gmail ──
+// Le réseau Render ne route pas l'IPv6 sortante : si Gmail est résolu en
+// AAAA, la connexion échoue (ENETUNREACH). Nodemailer 9 n'a PAS d'option
+// `family` : il résout lui-même (resolve4 + resolve6) et tire une adresse AU
+// HASARD dans le lot combiné. On force donc l'IPv4 en amont : résolution A
+// explicite à chaque envoi, puis `host` = IP (nodemailer court-circuite sa
+// propre résolution DNS quand host est une IP) + `tls.servername` pour le
+// SNI et la validation du certificat sur le vrai nom d'hôte.
+const SMTP_HOST = 'smtp.gmail.com';
+
 class SmtpMailService implements MailService {
-  private transporter: Transporter;
-  private from: string;
+  private user: string;
+  private pass: string;
 
   constructor(user: string, pass: string) {
-    this.from = user;
-    this.transporter = nodemailer.createTransport({
-      host: 'smtp.gmail.com',
+    this.user = user;
+    this.pass = pass;
+  }
+
+  // Résout smtp.gmail.com en IPv4 (enregistrements A uniquement). En cas
+  // d'échec DNS, on retombe sur le hostname : nodemailer résoudra lui-même.
+  private async resolveIpv4Host(): Promise<string> {
+    try {
+      const addresses = await resolve4(SMTP_HOST);
+      if (addresses.length > 0) return addresses[0];
+    } catch {
+      // DNS indisponible : fallback hostname ci-dessous.
+    }
+    return SMTP_HOST;
+  }
+
+  // Transport construit à l'envoi (volume très faible : codes de vérif) avec
+  // l'hôte résolu. Timeouts courts : les défauts nodemailer sont de 2 min,
+  // inacceptable dans un flux HTTP.
+  private buildTransporter(host: string): Transporter {
+    return nodemailer.createTransport({
+      host,
       port: 465,
       secure: true, // TLS implicite sur 465
-      auth: { user, pass },
+      auth: { user: this.user, pass: this.pass },
+      connectionTimeout: 5000, // établissement TCP
+      greetingTimeout: 5000,   // bannière SMTP après connexion
+      socketTimeout: 10000,    // inactivité en cours de session
+      tls: { servername: SMTP_HOST }, // SNI + validation certificat quand host est une IP
     });
   }
 
   async sendVerificationCode(to: string, code: string): Promise<void> {
     const { subject, text } = verificationEmail(code);
-    await this.transporter.sendMail({ from: this.from, to, subject, text });
+    const host = await this.resolveIpv4Host();
+    const transporter = this.buildTransporter(host);
+    await transporter.sendMail({ from: this.user, to, subject, text });
   }
 }
 

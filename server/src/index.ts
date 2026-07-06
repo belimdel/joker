@@ -32,6 +32,12 @@ type SocketData = {
 };
 
 const app = express();
+// Derrière le proxy Render : faire confiance à EXACTEMENT un saut, pour que
+// express-rate-limit lise la vraie IP client dans X-Forwarded-For (sinon tous
+// les clients partagent l'IP du proxy) et que les cookies `secure` marchent
+// derrière le proxy TLS. Surtout PAS `true` : un client pourrait alors forger
+// X-Forwarded-For et contourner le rate limiting.
+app.set('trust proxy', 1);
 app.use(cors());
 app.use(express.json());
 app.use(cookieParser());
