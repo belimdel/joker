@@ -49,6 +49,21 @@ export function isBidAllowed(
   return true;
 }
 
+// ─── Enchère INTERDITE au donneur (dernier à parler) ────────────
+// La valeur qui ferait tomber le total des enchères pile sur
+// cardsPerPlayer (règle du « hook ») : elle est interdite au donneur,
+// donc c'est elle qui le « force à parler ». Retourne null si cette
+// valeur sort des bornes 0..cardsPerPlayer (le donneur n'a alors aucune
+// contrainte). Sert à l'affichage : indiquer le chiffre grisé.
+export function forbiddenLastBid(
+  cardsPerPlayer: number,
+  previousBids: number[]
+): number | null {
+  const sum = previousBids.reduce((somme, b) => somme + b, 0);
+  const forbidden = cardsPerPlayer - sum;
+  return forbidden >= 0 && forbidden <= cardsPerPlayer ? forbidden : null;
+}
+
 // ─── Liste des enchères autorisées ──────────────────────────────
 // Pratique côté interface : on propose au joueur uniquement les
 // boutons valides. On balaie 0..cardsPerPlayer et on garde ceux

@@ -2,7 +2,7 @@ import type { Card, Suit } from "./cards";
 import type { PlayedCard } from "./trick";
 import type { RoundPhase } from "./round";
 import { TURN_DURATION_MS } from "./round";
-import type { DealResult, GamePhase, GameState } from "./game";
+import type { DealPlan, DealResult, GameConfig, GamePhase, GameState } from "./game";
 
 // ─── La vue filtrée d'un joueur ─────────────────────────────────
 // SÉCURITÉ : le GameState complet contient les mains de TOUS les
@@ -18,6 +18,12 @@ export type PlayerView = {
 
   // ── Niveau partie (tout public) ──
   gamePhase: GamePhase; // "playing" | "finished"
+  // Config de la partie (mode + pénalité de xisht) — affichée en en-tête
+  // de la feuille de score.
+  config: GameConfig;
+  // La séquence complète des donnes : le client en dérive les bornes de
+  // sets (sous-totaux de la feuille de score), quel que soit le mode.
+  schedule: DealPlan[];
   currentDealIndex: number;
   totalDeals: number;
   setIndex: number; // set courant (0-3)
@@ -100,6 +106,8 @@ export function buildPlayerView(
     you: playerIndex,
 
     gamePhase: state.phase,
+    config: { ...state.config },
+    schedule: state.schedule.map((d) => ({ ...d })),
     currentDealIndex: state.currentDealIndex,
     totalDeals: state.schedule.length,
     setIndex: deal.setIndex,

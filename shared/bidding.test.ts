@@ -1,4 +1,4 @@
-import { isBidAllowed, allowedBids } from "./bidding";
+import { isBidAllowed, allowedBids, forbiddenLastBid } from "./bidding";
 
 // ── Test 1 : l'exemple du doc ──────────────────────────────────
 // Manche à 2 cartes. Trois joueurs ont déjà annoncé [0, 0, 1]
@@ -55,6 +55,19 @@ console.log(
 console.log(
   "Test 5 (attendu [0,1,2,3]) :",
   allowedBids(3, [1, 1], false)
+);
+
+// ── Test 7 : forbiddenLastBid ──────────────────────────────────
+// Manche à 3 cartes, déjà annoncé [1, 1] (total 2). Interdit = 3-2 = 1.
+console.log(
+  "Test 7 (attendu 1) :",
+  forbiddenLastBid(3, [1, 1])
+);
+// Manche à 3 cartes, déjà annoncé [3, 3] (total 6). Interdit = 3-6 = -3
+// → hors bornes → aucune contrainte (null).
+console.log(
+  "Test 7b (attendu null) :",
+  forbiddenLastBid(3, [3, 3])
 );
 
 // ── Test 6 : immutabilité ──────────────────────────────────────

@@ -71,6 +71,19 @@ console.log(
   computePlayerScore(0, 0, 9)
 );
 
+// ── Test 14 : xisht avec pénalité configurée (mise Dring -500) ──
+console.log(
+  "Test 14 (attendu -500) :",
+  computePlayerScore(2, 0, 9, 500)
+);
+
+// ── Test 15 : pénalité configurée SANS xisht → aucun effet ──────
+// Contrat réussi : le paramètre khishtiPenalty ne change rien.
+console.log(
+  "Test 15 (attendu 200) :",
+  computePlayerScore(3, 3, 9, 1000)
+);
+
 // ── Garde-fous « fail fast » : les appels invalides doivent LEVER ──
 
 // Test 8 : tricksWon > cardsPerPlayer → erreur.

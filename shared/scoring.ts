@@ -35,10 +35,13 @@
 // plus tard avec l'état global.
 //
 // Fonction pure : entrées → sortie, aucun effet de bord.
+// khishtiPenalty : montant (positif) de la pénalité de xisht, configurable
+// par partie (mise « Dring » -200/-500/-1000 à la création de la room).
 export function computePlayerScore(
   bid: number,
   tricksWon: number,
-  cardsPerPlayer: number
+  cardsPerPlayer: number,
+  khishtiPenalty: number = 200
 ): number {
   // ── Garde-fou « fail fast » ──────────────────────────────────
   // scoring.ts est une fonction de CALCUL interne, pas un point de
@@ -69,7 +72,7 @@ export function computePlayerScore(
   // Doit être vérifié avant le cas « contrat réussi » et le cas
   // général « contrat raté » pour ne pas être masqué par eux.
   if (bid >= 1 && tricksWon === 0) {
-    return -200;
+    return -khishtiPenalty;
   }
 
   const contratReussi = tricksWon === bid;

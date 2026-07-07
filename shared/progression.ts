@@ -35,6 +35,23 @@ export function xpProgress(xp: number): XpProgress {
   };
 }
 
+// ─── Rangs nommés (cosmétiques, dérivés du niveau) ───────────────
+// Beginner < 10 ≤ Amateur < 25 ≤ Pro < 50 ≤ Master.
+export type RankName = "Beginner" | "Amateur" | "Pro" | "Master";
+
+export function rankNameForLevel(level: number): RankName {
+  if (level >= 50) return "Master";
+  if (level >= 25) return "Pro";
+  if (level >= 10) return "Amateur";
+  return "Beginner";
+}
+
+// Nombre d'étoiles du rang (1-4), pour l'affichage.
+export function rankStarsForLevel(level: number): number {
+  const rank = rankNameForLevel(level);
+  return rank === "Master" ? 4 : rank === "Pro" ? 3 : rank === "Amateur" ? 2 : 1;
+}
+
 export function rankingPointsForPosition(position: number): number {
   if (position === 1) return 30;
   if (position === 2) return 15;

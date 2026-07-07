@@ -283,3 +283,46 @@ check(
 expectThrow("Refus d'avancer une partie terminée", () =>
   advanceToNextRound(fg)
 );
+
+console.log("\n══════ Mode only9 (v6) ══════");
+const s9 = buildGameSchedule(4, "only9");
+check("only9 : 16 donnes", s9.length, 16);
+check(
+  "only9 : toutes à 9 cartes",
+  s9.every((d) => d.cardsPerPlayer === 9),
+  true
+);
+check(
+  "only9 : 4 sets de 4 donnes",
+  s9.map((d) => d.setIndex),
+  [0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3]
+);
+
+const g9 = createGame(4, { mode: "only9", khishtiPenalty: 200 });
+check("only9 : config posée sur l'état", g9.config.mode, "only9");
+check(
+  "only9 : première manche en choix d'atout (9 cartes)",
+  g9.round.phase,
+  "choosing-trump"
+);
+check(
+  "only9 : 16 donnes planifiées dans l'état",
+  g9.schedule.length,
+  16
+);
+
+console.log("\n══════ Pénalité khishti configurable (v6) ══════");
+// Mise -500 : p0 fait un xisht (enchère 2, 0 pli), les autres passent.
+let g500 = createGame(4, { mode: "standard", khishtiPenalty: 500 });
+check("Config par défaut standard/-500", g500.config.khishtiPenalty, 500);
+g500 = advanceToNextRound(finishRoundWith(g500, [1, 0, 0, 0], [0, 1, 0, 0]));
+check(
+  "Xisht à -500 (et passe ratée 10, passes réussies 50)",
+  g500.scores,
+  [-500, 10, 50, 50]
+);
+
+// Défaut inchangé : createGame sans config → standard / -200.
+const gDef = createGame(4);
+check("Défaut : mode standard", gDef.config.mode, "standard");
+check("Défaut : pénalité 200", gDef.config.khishtiPenalty, 200);
