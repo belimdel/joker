@@ -1,51 +1,75 @@
 /* ════════════════════════════════════════════════════════════════
-   JOKER — Design system « salon de cartes géorgien »
-   Feutre vert profond, accents laiton/or, typographie gravée.
-   Mobile-first, variables CSS pour la cohérence.
+   JOKER — Design system v6 « flat vert »
+   Fond vert franc, cartes blanches arrondies, badges/pills, nav
+   basse. Mobile-first, variables CSS pour la cohérence.
+   Les NOMS de variables historiques (--felt-*, --brass-*, --panel…)
+   sont conservés et repointés vers la nouvelle palette : les CSS
+   d'écrans continuent de fonctionner pendant la migration.
    ════════════════════════════════════════════════════════════════ */
 
 :root {
-  /* — Feutre — */
-  --felt-center: #1d7a59;
-  --felt-mid: #0e5038;
-  --felt-edge: #06301d;
-
-  /* — Laiton / or — */
-  --brass: #d8b160;
-  --brass-bright: #f2d79a;
-  --brass-dim: #9a7b3a;
-  --brass-shadow: #4f3d18;
-
-  /* — Surfaces sombres (panneaux) — */
-  --panel: #0e3b2b;
-  --panel-2: #092a1e;
-  --line: rgba(216, 177, 96, 0.26);
-  --line-strong: rgba(216, 177, 96, 0.55);
-
-  /* — Carte à jouer — */
-  --card-cream: #f7f0de;
-  --card-cream-2: #ebdcbd;
-  --card-ink: #1f242b;
-  --card-red: #b22f28;
-  --card-edge: #d8cba4;
-
-  /* — Texte — */
-  --text: #f4ead0;
-  --text-dim: #aebfb2;
-  --text-ink: #15160f;
+  /* — Verts de fond (flat) — */
+  --felt-center: #27ae5f;
+  --felt-mid: #22a559;
+  --felt-edge: #1e9552;
+  --green-deep: #178a49; /* bandeaux, header */
+  --green-soft: rgba(255, 255, 255, 0.14); /* panneau translucide sur vert */
+  --green-soft-2: rgba(255, 255, 255, 0.22);
 
   /* — Accents — */
+  --accent-blue: #3b82e0;
+  --accent-blue-deep: #2f6dc4;
+  --accent-yellow: #f5b81d;
+  --accent-red: #c0504d;
+  --brass: #ffd75e; /* étoiles / or décoratif */
+  --brass-bright: #ffe58a;
+  --brass-dim: #d9b13f;
+  --brass-shadow: rgba(0, 0, 0, 0.25);
+
+  /* — Surfaces claires (cartes blanches) — */
+  --panel: #ffffff;
+  --panel-2: #f3f5f4;
+  --ink: #1d2430; /* texte sur surface claire */
+  --ink-dim: #75808b;
+  --line: rgba(0, 0, 0, 0.08);
+  --line-strong: rgba(0, 0, 0, 0.16);
+  --line-on-green: rgba(255, 255, 255, 0.35);
+
+  /* — Feuille de score / overlays sombres — */
+  --navy: #2f3b4c;
+  --navy-2: #27313f;
+  --navy-line: rgba(255, 255, 255, 0.12);
+  --score-green: #3ecf6e;
+
+  /* — Table de jeu — */
+  --table-teal: #1f8f8b;
+  --table-teal-2: #187672;
+
+  /* — Carte à jouer — */
+  --card-cream: #ffffff;
+  --card-cream-2: #f2f2f2;
+  --card-ink: #1f242b;
+  --card-red: #d2413a;
+  --card-edge: #d9dde2;
+
+  /* — Texte sur fond vert — */
+  --text: #ffffff;
+  --text-dim: rgba(255, 255, 255, 0.75);
+  --text-ink: #1d2430;
+
+  /* — Accents d'état — */
   --glow: #ffe39a;
-  --danger: #e8765c;
-  --ok: #76d39a;
+  --danger: #e8564a;
+  --ok: #3ecf6e;
 
   /* — Typographie — */
-  --font-display: "Cinzel", Georgia, "Times New Roman", serif;
-  --font-body: "Spectral", Georgia, serif;
+  --font-display: "Oswald", "Arial Narrow", sans-serif;
+  --font-body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
 
   /* — Mesures — */
   --card-w: 72px;
-  --radius: 16px;
+  --radius: 18px;
+  --nav-h: 64px;
 }
 
 * {
@@ -62,28 +86,10 @@ body {
   margin: 0;
   font-family: var(--font-body);
   color: var(--text);
-  background: radial-gradient(
-      ellipse 130% 95% at 50% 26%,
-      var(--felt-center),
-      var(--felt-mid) 46%,
-      var(--felt-edge) 100%
-    )
-    fixed;
+  background: linear-gradient(180deg, var(--felt-center), var(--felt-edge)) fixed;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   overscroll-behavior: none;
-}
-
-/* Grain de feutre (texture subtile, atmosphère) */
-body::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 0;
-  opacity: 0.06;
-  mix-blend-mode: overlay;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
 #root {
@@ -97,101 +103,159 @@ body::before {
 h1,
 h2,
 h3 {
-  font-family: var(--font-display);
-  font-weight: 600;
-  letter-spacing: 0.03em;
+  font-family: var(--font-body);
+  font-weight: 800;
+  letter-spacing: -0.01em;
   margin: 0;
 }
 
 .jk-brand {
-  font-family: var(--font-display);
+  font-family: var(--font-body);
   font-weight: 800;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  background: linear-gradient(180deg, var(--brass-bright), var(--brass) 55%, var(--brass-dim));
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.35);
+  letter-spacing: -0.02em;
+  color: #fff;
 }
 
 .jk-eyebrow {
-  font-family: var(--font-display);
   font-size: 0.72rem;
-  letter-spacing: 0.34em;
+  font-weight: 700;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: var(--brass);
-  opacity: 0.85;
+  color: rgba(255, 255, 255, 0.85);
 }
 
-/* ─── Panneau (feutre + filet laiton double) ──────────────────── */
+/* ─── Panneau : carte blanche arrondie ────────────────────────── */
 .jk-panel {
   position: relative;
-  background: linear-gradient(180deg, var(--panel), var(--panel-2));
-  border: 1px solid var(--line);
+  background: var(--panel);
+  border: none;
   border-radius: var(--radius);
-  box-shadow:
-    0 24px 70px rgba(0, 0, 0, 0.55),
-    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.14);
+  color: var(--ink);
+  /* Sur surface claire, les libellés passent à l'encre. */
+  --text: var(--ink);
+  --text-dim: var(--ink-dim);
 }
-.jk-panel::after {
-  content: "";
-  position: absolute;
-  inset: 6px;
-  border: 1px solid var(--line);
-  border-radius: calc(var(--radius) - 6px);
-  pointer-events: none;
+
+/* Panneau translucide sur fond vert (sections de listes). */
+.jk-panel--soft {
+  background: var(--green-soft);
+  color: #fff;
+  box-shadow: none;
+  --text: #fff;
+  --text-dim: rgba(255, 255, 255, 0.75);
 }
 
 /* ─── Boutons ─────────────────────────────────────────────────── */
 .jk-btn {
-  font-family: var(--font-display);
-  font-size: 0.92rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  padding: 0.72rem 1.3rem;
-  border-radius: 12px;
-  border: 1px solid var(--line);
-  background: rgba(0, 0, 0, 0.2);
-  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+  padding: 0.7rem 1.3rem;
+  border-radius: 14px;
+  border: none;
+  background: var(--green-soft-2);
+  color: #fff;
   cursor: pointer;
   transition: transform 0.12s ease, box-shadow 0.2s ease, background 0.2s ease,
-    border-color 0.2s ease, opacity 0.2s ease;
+    opacity 0.2s ease, filter 0.2s ease;
 }
 .jk-btn:hover:not(:disabled) {
   transform: translateY(-1px);
-  border-color: var(--line-strong);
+  filter: brightness(1.05);
 }
 .jk-btn:active:not(:disabled) {
   transform: translateY(1px);
 }
 .jk-btn:disabled {
-  opacity: 0.4;
+  opacity: 0.45;
   cursor: not-allowed;
 }
 
-.jk-btn--primary {
-  background: linear-gradient(180deg, var(--brass-bright), var(--brass) 52%, var(--brass-dim));
-  color: #2c1f06;
-  border: 1px solid var(--brass-bright);
-  font-weight: 700;
-  box-shadow:
-    0 8px 22px rgba(0, 0, 0, 0.4),
-    inset 0 1px 0 rgba(255, 255, 255, 0.5);
-}
-.jk-btn--primary:hover:not(:disabled) {
-  box-shadow:
-    0 12px 28px rgba(0, 0, 0, 0.45),
-    0 0 22px rgba(255, 227, 154, 0.35),
-    inset 0 1px 0 rgba(255, 255, 255, 0.6);
+/* Sur surface claire (panneau blanc), le bouton par défaut passe en gris
+   clair + texte encre : sinon texte blanc sur fond quasi-blanc = illisible
+   (ex. boutons Haut/Bas du modal Joker). Placé AVANT les variantes
+   --primary/--ghost pour qu'elles gardent la priorité (même spécificité). */
+.jk-panel .jk-btn {
+  background: #eef1f0;
+  color: var(--ink);
 }
 
+/* Primaire = pastille blanche (bouton « Play » des cartes de room). */
+.jk-btn--primary {
+  background: #fff;
+  color: var(--ink);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+}
+/* …sauf sur surface claire, où le primaire devient bleu (lisibilité). */
+.jk-panel .jk-btn--primary {
+  background: var(--accent-blue);
+  color: #fff;
+}
+
+/* Grand bouton d'action bleu (« Play » de l'accueil, « Create »). */
+.jk-btn--blue {
+  background: var(--accent-blue);
+  color: #fff;
+  box-shadow: 0 6px 18px rgba(23, 62, 120, 0.35);
+}
+.jk-btn--blue:hover:not(:disabled) {
+  background: var(--accent-blue-deep);
+}
+
+/* Contour blanc sur fond vert (« Find Room », « Enable Notifications »). */
 .jk-btn--ghost {
   background: transparent;
+  border: 1.5px solid var(--line-on-green);
+  color: #fff;
+}
+.jk-panel .jk-btn--ghost {
+  border-color: var(--line-strong);
+  color: var(--ink);
 }
 
 .jk-btn--block {
   width: 100%;
+}
+.jk-btn--sm {
+  font-size: 0.82rem;
+  padding: 0.45rem 0.85rem;
+  border-radius: 11px;
+}
+
+/* ─── Pills / badges (mode, mise, rang, ranked) ───────────────── */
+.jk-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.28rem 0.75rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  background: var(--green-soft-2);
+  color: #fff;
+  white-space: nowrap;
+}
+.jk-pill--mode {
+  text-transform: uppercase;
+}
+.jk-pill--red {
+  background: var(--accent-red);
+}
+.jk-pill--star {
+  padding: 0.28rem 0.5rem;
+  background: var(--green-soft-2);
+}
+.jk-panel .jk-pill {
+  background: #edf0ef;
+  color: var(--ink);
+}
+.jk-panel .jk-pill--red {
+  background: var(--accent-red);
+  color: #fff;
 }
 
 /* ─── Champs ──────────────────────────────────────────────────── */
@@ -200,22 +264,22 @@ h3 {
   font-size: 1rem;
   width: 100%;
   padding: 0.78rem 0.95rem;
-  color: var(--text);
-  background: rgba(0, 0, 0, 0.28);
-  border: 1px solid var(--line);
-  border-radius: 12px;
+  color: var(--ink);
+  background: #fff;
+  border: 1.5px solid var(--line-strong);
+  border-radius: 14px;
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 .jk-input::placeholder {
-  color: rgba(244, 234, 208, 0.4);
+  color: var(--ink-dim);
 }
 .jk-input:focus {
   outline: none;
-  border-color: var(--brass);
-  box-shadow: 0 0 0 3px rgba(216, 177, 96, 0.18);
+  border-color: var(--accent-blue);
+  box-shadow: 0 0 0 3px rgba(59, 130, 224, 0.18);
 }
 .jk-input--code {
-  font-family: var(--font-display);
+  font-weight: 800;
   letter-spacing: 0.42em;
   text-transform: uppercase;
   text-align: center;
@@ -224,24 +288,114 @@ h3 {
 
 .jk-label {
   display: block;
-  font-size: 0.74rem;
-  letter-spacing: 0.22em;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--text-dim);
   margin-bottom: 0.45rem;
 }
 
-/* ─── Pastille d'erreur ───────────────────────────────────────── */
+/* ─── Toggle iOS ──────────────────────────────────────────────── */
+.jk-switch {
+  position: relative;
+  width: 52px;
+  height: 31px;
+  border-radius: 999px;
+  border: none;
+  background: #d5d9dd;
+  cursor: pointer;
+  flex: none;
+  padding: 0;
+  transition: background 0.2s ease;
+}
+.jk-switch::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 27px;
+  height: 27px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+  transition: transform 0.2s ease;
+}
+.jk-switch.is-on {
+  background: var(--accent-blue);
+}
+.jk-switch.is-on::after {
+  transform: translateX(21px);
+}
+.jk-switch:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ─── Segmented control (mode / mise) ─────────────────────────── */
+.jk-seg {
+  display: flex;
+  background: #e8ebea;
+  border-radius: 14px;
+  overflow: hidden;
+}
+.jk-seg__opt {
+  flex: 1;
+  border: none;
+  background: transparent;
+  padding: 0.6rem 0.4rem;
+  cursor: pointer;
+  color: var(--ink);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  min-width: 0;
+  border-left: 1px solid rgba(0, 0, 0, 0.07);
+}
+.jk-seg__opt:first-child {
+  border-left: none;
+}
+.jk-seg__opt.is-active {
+  background: var(--accent-yellow);
+  border-radius: 14px;
+}
+.jk-seg__opt:disabled {
+  color: #adb4bb;
+  cursor: not-allowed;
+}
+.jk-seg__title {
+  font-size: 0.98rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.jk-seg__sub {
+  font-family: var(--font-display);
+  font-size: 0.62rem;
+  letter-spacing: 0.02em;
+  color: rgba(0, 0, 0, 0.55);
+  white-space: nowrap;
+}
+.jk-seg__opt:disabled .jk-seg__sub {
+  color: #adb4bb;
+}
+
+/* ─── Pastille d'erreur / info ────────────────────────────────── */
 .jk-error {
   display: flex;
   align-items: center;
   gap: 0.5rem;
   padding: 0.65rem 0.9rem;
   border-radius: 12px;
-  background: rgba(232, 118, 92, 0.14);
-  border: 1px solid rgba(232, 118, 92, 0.5);
-  color: #ffd9cd;
+  background: rgba(192, 80, 77, 0.92);
+  border: none;
+  color: #fff;
   font-size: 0.92rem;
+  font-weight: 600;
+}
+.jk-panel .jk-error {
+  background: rgba(210, 65, 58, 0.1);
+  color: #b03a34;
 }
 
 /* ─── Bandeau « partie en cours » (verrou) sur l'accueil ──────── */
@@ -252,9 +406,9 @@ h3 {
   gap: 0.75rem;
   padding: 0.75rem 0.9rem;
   margin-bottom: 1rem;
-  border-radius: 12px;
-  background: rgba(216, 177, 96, 0.12);
-  border: 1px solid rgba(216, 177, 96, 0.55);
+  border-radius: 14px;
+  background: rgba(245, 184, 29, 0.18);
+  border: 1.5px solid var(--accent-yellow);
 }
 .jk-active-game__text {
   display: flex;
@@ -262,13 +416,188 @@ h3 {
   gap: 0.15rem;
 }
 .jk-active-game__text strong {
-  font-family: var(--font-display);
-  font-size: 1rem;
-  color: var(--brass, #d8b160);
+  font-size: 0.98rem;
 }
 .jk-active-game__text span {
   font-size: 0.82rem;
-  color: var(--text-dim, rgba(244, 234, 208, 0.66));
+  color: var(--text-dim);
+}
+
+/* ─── Barre du haut (menu) ────────────────────────────────────── */
+.jk-topbar {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.7rem 0.9rem;
+}
+.jk-topbar__logo {
+  width: 34px;
+  height: 34px;
+  flex: none;
+}
+.jk-topbar__rank {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+.jk-topbar__rankname {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #fff;
+  white-space: nowrap;
+}
+.jk-topbar__spacer {
+  flex: 1;
+}
+.jk-topbar__coins {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  border: 1.5px solid var(--line-on-green);
+  border-radius: 12px;
+  padding: 0.32rem 0.7rem;
+  font-weight: 700;
+  font-size: 0.92rem;
+  color: #fff;
+  background: transparent;
+}
+.jk-topbar__user {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: #fff;
+  color: var(--ink);
+  border: none;
+  border-radius: 12px;
+  padding: 0.38rem 0.75rem;
+  font-weight: 700;
+  font-size: 0.92rem;
+  cursor: pointer;
+  max-width: 130px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.jk-topbar__avatar {
+  cursor: pointer;
+  border: none;
+  background: none;
+  padding: 0;
+}
+
+/* ─── Étoiles de rang ─────────────────────────────────────────── */
+.jk-stars {
+  display: inline-flex;
+  gap: 2px;
+  line-height: 1;
+}
+.jk-stars__star {
+  color: var(--accent-yellow);
+  font-size: 0.85rem;
+}
+.jk-stars__star.is-off {
+  opacity: 0.35;
+}
+
+/* ─── Avatar (initiales, forme carte) ─────────────────────────── */
+.jk-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 22%;
+  font-weight: 800;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+  user-select: none;
+  flex: none;
+  box-shadow: inset 0 -8px 14px rgba(0, 0, 0, 0.16);
+}
+.jk-avatar--empty {
+  background: rgba(0, 0, 0, 0.1);
+  box-shadow: none;
+}
+.jk-panel .jk-avatar--empty {
+  background: #e8ebea;
+}
+
+/* ─── Nav basse ───────────────────────────────────────────────── */
+.jk-nav {
+  position: sticky;
+  bottom: 0;
+  z-index: 40;
+  display: flex;
+  height: var(--nav-h);
+  background: var(--green-deep);
+  box-shadow: 0 -4px 18px rgba(0, 0, 0, 0.16);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.jk-nav__item {
+  flex: 1;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.72);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  font-family: var(--font-body);
+  font-size: 0.68rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+}
+.jk-nav__item svg {
+  width: 22px;
+  height: 22px;
+}
+.jk-nav__item.is-active {
+  color: #fff;
+}
+
+/* ─── Overlay sombre plein écran (ranked starting…) ───────────── */
+.jk-dimmer {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  background: rgba(20, 50, 35, 0.45);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+}
+.jk-dimmer__card {
+  width: min(420px, 92vw);
+  background: rgba(10, 14, 12, 0.82);
+  border-radius: 18px;
+  padding: 2rem 1.5rem;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+.jk-dimmer__title {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #fff;
+}
+.jk-dimmer__sub {
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.92);
+}
+.jk-dimmer__note {
+  font-size: 0.85rem;
+  font-style: italic;
+  color: rgba(255, 255, 255, 0.6);
 }
 
 /* ─── Animations ──────────────────────────────────────────────── */
@@ -285,10 +614,10 @@ h3 {
 @keyframes jk-turn-pulse {
   0%,
   100% {
-    box-shadow: 0 0 0 0 rgba(255, 227, 154, 0);
+    box-shadow: 0 0 0 0 rgba(245, 184, 29, 0);
   }
   50% {
-    box-shadow: 0 0 0 4px rgba(255, 227, 154, 0.35), 0 0 26px rgba(255, 227, 154, 0.4);
+    box-shadow: 0 0 0 4px rgba(245, 184, 29, 0.45), 0 0 26px rgba(245, 184, 29, 0.4);
   }
 }
 @keyframes jk-deal {
@@ -312,4 +641,17 @@ h3 {
   display: flex;
   flex-direction: column;
   min-height: 100%;
+}
+
+/* Zone défilante entre topbar et nav basse. C'est CETTE zone qui défile
+   (pas le <body>) : sinon, quand le contenu dépasse, le <body> défile et la
+   nav basse en position:sticky se décolle du bas de l'écran. overflow-y:auto
+   confine le défilement ici et garde la nav collée en bas via la colonne flex. */
+.jk-page {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
