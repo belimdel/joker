@@ -1,5 +1,8 @@
 import { useState, useEffect } from "react";
 import { api, type UserStats } from "../api";
+import { useAuth } from "../AuthContext";
+import { Avatar } from "../components/Avatar";
+import { RankStars, rankLabel } from "../components/RankBadge";
 import "./screens.css";
 
 type Props = {
@@ -9,6 +12,7 @@ type Props = {
 };
 
 export function Profile({ username, onBack, onViewLeaderboard }: Props) {
+  const { user, logout } = useAuth();
   const [data, setData] = useState<UserStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -37,7 +41,14 @@ export function Profile({ username, onBack, onViewLeaderboard }: Props) {
     <div className="jk-profile jk-fade-up">
       <div className="jk-profile__nav">
         <button className="jk-btn jk-btn--ghost jk-btn--sm" onClick={onBack}>← Retour</button>
-        <button className="jk-btn jk-btn--ghost jk-btn--sm" onClick={onViewLeaderboard}>Classement →</button>
+        <span style={{ display: "flex", gap: "0.5rem" }}>
+          {user && user.username === username && (
+            <button className="jk-btn jk-btn--ghost jk-btn--sm" onClick={logout}>
+              Se déconnecter
+            </button>
+          )}
+          <button className="jk-btn jk-btn--ghost jk-btn--sm" onClick={onViewLeaderboard}>Classement →</button>
+        </span>
       </div>
 
       {loading && <p className="jk-profile__loading">Chargement…</p>}
@@ -46,8 +57,12 @@ export function Profile({ username, onBack, onViewLeaderboard }: Props) {
       {data && (
         <>
           <header className="jk-profile__head">
+            <Avatar name={data.user.username} size={64} />
             <h2 className="jk-profile__name">{data.user.username}</h2>
-            <div className="jk-profile__level">Niv. {data.progression.level}</div>
+            <div className="jk-profile__level">
+              {rankLabel(data.progression.level)} · Niv. {data.progression.level}
+            </div>
+            <RankStars level={data.progression.level} />
             <div className="jk-xp-bar">
               <div className="jk-xp-bar__fill" style={{ width: `${xpBarPct}%` }} />
             </div>

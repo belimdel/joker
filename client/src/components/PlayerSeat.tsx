@@ -1,4 +1,5 @@
 import type { RoundPhase } from "@shared/round";
+import { Avatar } from "./Avatar";
 import { BidStatus } from "./BidStatus";
 import { TurnTimer } from "./TurnTimer";
 
@@ -37,7 +38,6 @@ export function PlayerSeat({
   turnStartedAt,
   turnDurationMs,
 }: PlayerSeatProps) {
-  const initial = pseudo.trim().charAt(0).toUpperCase() || "?";
   // Le décompte n'a de sens que pendant l'enchère/le jeu (pas une fois
   // la manche "finished", où currentPlayer ne représente plus un tour).
   const showTimer = isTurn && roundPhase !== "finished";
@@ -54,7 +54,7 @@ export function PlayerSeat({
         .join(" ")}
     >
       <div className="jk-pseat__avatar">
-        <span className="jk-pseat__initial">{initial}</span>
+        <Avatar name={pseudo} size={36} />
         {isDealer && (
           <span className="jk-pseat__dealer" title="Donneur">
             D

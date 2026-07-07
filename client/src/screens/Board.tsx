@@ -80,23 +80,29 @@ function PlayedCardView({ played }: { played: PlayedCard }) {
   );
 }
 
-// ─── Centre de la table : pli en cours, ou dernier pli complet ────
+// ─── Pli terminé : snapshot local, indépendant des vues suivantes ──
 // Le serveur vide currentTrick juste après l'avoir diffusé : c'est
 // lastTrick (cf. PlayerView) qui porte le pli qui vient de se terminer.
-// Tant que `showLastTrick` est actif (cf. effet dans Board) et que la
-// table est vide, on affiche ce dernier pli avec son gagnant surligné.
-function Center({
-  view,
-  showLastTrick,
-  slideDir,
-}: {
-  view: PlayerView;
-  showLastTrick: boolean;
-  slideDir: SeatPos | null;
-}) {
-  const tableEmpty = view.currentTrick.length === 0;
+// On le fige dans ce snapshot au moment de sa détection, si bien que
+// l'animation (pause → glissement vers le gagnant → disparition) se
+// déroule TOUJOURS en entier, même si d'autres vues arrivent entre-temps
+// (prochain joueur rapide, autoplay…). C'était la cause des ratés :
+// l'ancien code annulait l'affichage dès que currentTrick se remplissait.
+type FinishedTrick = {
+  sig: string;
+  trick: PlayedCard[];
+  winnerSeat: number | null;
+  winnerDir: SeatPos | null;
+};
 
-  if (view.roundPhase === "bidding" && !(showLastTrick && tableEmpty)) {
+// ─── Centre de la table : pli en cours + éventuel pli qui se termine ─
+// Les deux couches coexistent : le pli terminé glisse vers le gagnant
+// pendant que les cartes du pli suivant peuvent déjà se poser dessous.
+// La couche du pli terminé est re-montée à neuf pour chaque pli (clé =
+// signature) : aucune transition résiduelle d'un pli précédent ne peut
+// contaminer le suivant, et l'animation CSS repart de zéro à coup sûr.
+function Center({ view, finished }: { view: PlayerView; finished: FinishedTrick | null }) {
+  if (view.roundPhase === "bidding" && !finished) {
     return (
       <div className="jk-center jk-center--bidding">
         <p className="jk-center__hint">Phase d'enchères</p>
@@ -104,31 +110,36 @@ function Center({
     );
   }
 
-  const showingLastTrick = tableEmpty && showLastTrick;
-  const displayTrick = showingLastTrick ? view.lastTrick : view.currentTrick;
-  const winnerSeat = showingLastTrick ? view.lastTrickWinner : null;
-  // Glissement vers le siège gagnant : purement visuel, ne s'active que
-  // pendant la fenêtre d'affichage du pli déjà résolu (cf. effet dans Board).
-  const sliding = showingLastTrick && slideDir !== null;
-
   return (
     <div className="jk-center jk-center--playing">
       <div className="jk-trick">
-        {displayTrick.map((p) => (
+        {view.currentTrick.map((p) => (
           <div
             key={p.playerIndex}
-            className={[
-              "jk-trick__slot",
-              `jk-trick__slot--${relPos(p.playerIndex, view.you)}`,
-              p.playerIndex === winnerSeat && "is-winner",
-              sliding && `is-sliding--${slideDir}`,
-            ]
-              .filter(Boolean)
-              .join(" ")}
+            className={`jk-trick__slot jk-trick__slot--${relPos(p.playerIndex, view.you)}`}
           >
             <PlayedCardView played={p} />
           </div>
         ))}
+        {finished && (
+          <div key={finished.sig} className="jk-trick__overlay">
+            {finished.trick.map((p) => (
+              <div
+                key={p.playerIndex}
+                className={[
+                  "jk-trick__slot",
+                  `jk-trick__slot--${relPos(p.playerIndex, view.you)}`,
+                  p.playerIndex === finished.winnerSeat && "is-winner",
+                  finished.winnerDir && `is-collect--${finished.winnerDir}`,
+                ]
+                  .filter(Boolean)
+                  .join(" ")}
+              >
+                <PlayedCardView played={p} />
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -264,13 +275,17 @@ function trickSignature(trick: PlayedCard[]): string {
 
 // Séquençage de l'affichage du pli gagné, trois étapes bien séparées :
 // 1) pause figée (on voit les 4 cartes + le halo du gagnant) ;
-// 2) glissement des cartes vers le siège gagnant (cf. board.css) ;
+// 2) glissement des cartes vers le siège gagnant ;
 // 3) le pli disparaît, libérant l'écran pour l'étape suivante (enchères…).
-// TRICK_SLIDE_MS doit rester égal à la durée de transition CSS sur
-// `.jk-trick__slot` pour que la disparition coïncide avec la fin du geste.
+// Les étapes 1 et 2 sont entièrement pilotées par le CSS (animation
+// `jk-collect-*` avec animation-delay, cf. board.css) : aucun timer JS
+// ne peut manquer le déclenchement du glissement. Le seul timer restant
+// démonte le snapshot APRÈS la fin du geste ; comme l'animation garde
+// son état final (fill-mode: both → opacity 0), un retard de timer est
+// invisible. PAUSE et SLIDE doivent rester alignés sur board.css.
 const TRICK_PAUSE_MS = 1000;
 const TRICK_SLIDE_MS = 300;
-const TRICK_DISPLAY_MS = TRICK_PAUSE_MS + TRICK_SLIDE_MS;
+const TRICK_UNMOUNT_MS = TRICK_PAUSE_MS + TRICK_SLIDE_MS + 150;
 
 // ════════════════════════════════════════════════════════════════
 //  Le plateau de jeu
@@ -296,62 +311,44 @@ export function Board() {
 
   const [pendingJoker, setPendingJoker] = useState<Card | null>(null);
   const [showScores, setShowScores] = useState(false);
-  const [showLastTrick, setShowLastTrick] = useState(false);
-  // Direction (relative à l'écran) vers laquelle les 4 cartes du pli
-  // glissent juste avant de disparaître : siège gagnant vu depuis `me`.
-  const [slideDir, setSlideDir] = useState<SeatPos | null>(null);
+  // Snapshot du pli qui vient de se terminer : figé à la détection, il
+  // porte l'animation complète sans dépendre des vues suivantes.
+  const [finished, setFinished] = useState<FinishedTrick | null>(null);
 
-  const lastSigRef = useRef<string>("");
-  const lastTrickTimer = useRef<number | undefined>(undefined);
-  const slideTimer = useRef<number | undefined>(undefined);
+  // null = aucune vue encore reçue (montage/reconnexion) : on mémorise
+  // alors la signature courante SANS animer, pour ne pas rejouer un pli
+  // déjà résolu avant notre arrivée.
+  const lastSigRef = useRef<string | null>(null);
+  const finishedTimer = useRef<number | undefined>(undefined);
 
-  // Affiche brièvement le DERNIER pli complet (view.lastTrick) quand la
-  // table vient de se vider et qu'un nouveau pli (signature différente)
-  // est arrivé — couvre aussi bien la fin d'un pli en cours de manche
-  // que le dernier pli de la donne précédente, conservé par le serveur
-  // jusqu'à la première vue de la nouvelle donne (cf. Tâche A).
+  // Détecte qu'un NOUVEAU pli complet vient d'arriver (signature de
+  // view.lastTrick différente) et fige son snapshot. On ne l'annule
+  // JAMAIS sur les vues suivantes : le démontage n'a qu'une seule
+  // horloge, le timer posé ici, calé après la fin de l'animation CSS.
   useEffect(() => {
     if (!view) return;
     const sig = trickSignature(view.lastTrick);
 
-    if (view.currentTrick.length > 0) {
-      setShowLastTrick(false);
-      setSlideDir(null);
-      window.clearTimeout(lastTrickTimer.current);
-      window.clearTimeout(slideTimer.current);
+    if (lastSigRef.current === null) {
+      lastSigRef.current = sig;
       return;
     }
+    if (!sig || sig === lastSigRef.current) return;
+    lastSigRef.current = sig;
 
-    if (sig && sig !== lastSigRef.current) {
-      lastSigRef.current = sig;
-      setShowLastTrick(true);
-      window.clearTimeout(lastTrickTimer.current);
-      lastTrickTimer.current = window.setTimeout(() => setShowLastTrick(false), TRICK_DISPLAY_MS);
-
-      // Glissement visuel des 4 cartes vers le siège gagnant, déclenché
-      // après la pause figée (TRICK_PAUSE_MS) : pause → glissement →
-      // disparition (à TRICK_DISPLAY_MS, juste après la fin du geste),
-      // ce qui laisse la place aux enchères seulement une fois le
-      // glissement terminé. Le siège est capturé ici pour ce pli précis,
-      // indépendamment de l'atout ou d'une vue ultérieure.
-      const winner = view.lastTrickWinner;
-      setSlideDir(null);
-      window.clearTimeout(slideTimer.current);
-      if (winner !== null) {
-        const dir = relPos(winner, view.you);
-        slideTimer.current = window.setTimeout(() => setSlideDir(dir), TRICK_PAUSE_MS);
-      }
-    }
+    const winner = view.lastTrickWinner;
+    setFinished({
+      sig,
+      trick: view.lastTrick,
+      winnerSeat: winner,
+      winnerDir: winner === null ? null : relPos(winner, view.you),
+    });
+    window.clearTimeout(finishedTimer.current);
+    finishedTimer.current = window.setTimeout(() => setFinished(null), TRICK_UNMOUNT_MS);
   }, [view]);
 
-  // Nettoyage des minuteries à la sortie du plateau.
-  useEffect(
-    () => () => {
-      window.clearTimeout(lastTrickTimer.current);
-      window.clearTimeout(slideTimer.current);
-    },
-    [],
-  );
+  // Nettoyage de la minuterie à la sortie du plateau.
+  useEffect(() => () => window.clearTimeout(finishedTimer.current), []);
 
   if (!view) return null;
 
@@ -451,7 +448,7 @@ export function Board() {
         ))}
 
         <div className="jk-pos--center">
-          <Center view={view} showLastTrick={showLastTrick} slideDir={slideDir} />
+          <Center view={view} finished={finished} />
         </div>
 
         <div className="jk-pos--hand">

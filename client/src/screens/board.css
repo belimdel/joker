@@ -19,20 +19,20 @@
   justify-content: space-between;
   gap: 0.8rem;
   padding: 0.7rem clamp(0.7rem, 3vw, 1.4rem);
-  border-bottom: 1px solid var(--line);
-  background: linear-gradient(180deg, rgba(0, 0, 0, 0.28), transparent);
+  border-bottom: none;
+  background: transparent;
 }
 .jk-table__deal {
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
+  align-items: center;
   gap: 0.15rem;
+  text-align: center;
 }
 .jk-table__cards {
-  font-family: var(--font-display);
-  color: var(--brass-bright);
+  font-weight: 700;
+  color: #fff;
   font-size: 0.92rem;
-  letter-spacing: 0.06em;
 }
 .jk-table__leave {
   padding: 0.45rem 0.9rem;
@@ -45,6 +45,11 @@
   display: grid;
   gap: clamp(0.6rem, 2vw, 1.2rem);
   padding: clamp(0.6rem, 2.5vw, 1.4rem);
+  /* Table teal arrondie posée sur le fond vert (façon app de référence). */
+  margin: 0 clamp(0.4rem, 2vw, 1rem) clamp(0.4rem, 2vw, 1rem);
+  background: linear-gradient(180deg, var(--table-teal), var(--table-teal-2));
+  border-radius: 26px;
+  box-shadow: inset 0 4px 18px rgba(0, 0, 0, 0.18);
   grid-template-columns: minmax(80px, 1fr) minmax(200px, 2.2fr) minmax(80px, 1fr);
   grid-template-rows: auto 1fr auto;
   grid-template-areas:
@@ -86,53 +91,41 @@
   display: flex;
   align-items: center;
   gap: 0.6rem;
-  padding: 0.5rem 0.7rem;
-  border-radius: 14px;
-  background: linear-gradient(180deg, rgba(14, 59, 43, 0.85), rgba(9, 42, 30, 0.85));
-  border: 1px solid var(--line);
+  padding: 0.45rem 0.65rem;
+  border-radius: 12px;
+  background: rgba(38, 47, 60, 0.88);
+  border: 2px solid transparent;
   max-width: 220px;
   transition: border-color 0.25s ease, box-shadow 0.25s ease, transform 0.2s ease;
 }
 .jk-pseat.is-turn {
-  border-color: var(--brass-bright);
+  border-color: var(--accent-yellow);
   animation: jk-turn-pulse 1.8s ease-in-out infinite;
 }
 .jk-pseat.is-me {
-  background: linear-gradient(180deg, rgba(216, 177, 96, 0.14), rgba(9, 42, 30, 0.9));
+  background: rgba(30, 38, 49, 0.92);
 }
 
 .jk-pseat__avatar {
   position: relative;
   flex: none;
-  width: 42px;
-  height: 42px;
-  border-radius: 50%;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 1.1rem;
-  color: #2c1f06;
-  background: radial-gradient(circle at 35% 30%, var(--brass-bright), var(--brass) 60%, var(--brass-dim));
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), 0 3px 8px rgba(0, 0, 0, 0.4);
 }
 .jk-pseat__dealer {
   position: absolute;
-  bottom: -4px;
-  right: -4px;
+  bottom: -5px;
+  right: -5px;
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background: var(--panel-2);
-  border: 1px solid var(--brass);
-  color: var(--brass-bright);
+  background: var(--accent-yellow);
+  border: none;
+  color: #1d2430;
   font-size: 0.6rem;
-  font-weight: 700;
+  font-weight: 800;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-family: var(--font-display);
 }
 
 .jk-pseat__info {
@@ -142,18 +135,16 @@
   min-width: 0;
 }
 .jk-pseat__name {
-  font-family: var(--font-display);
-  font-size: 0.92rem;
-  color: var(--text);
+  font-weight: 700;
+  font-size: 0.88rem;
+  color: #fff;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .jk-pseat__level {
-  font-family: var(--font-body);
   font-size: 0.65rem;
-  color: var(--brass);
-  opacity: 0.85;
+  color: rgba(255, 255, 255, 0.65);
 }
 .jk-pseat__meta {
   display: flex;
@@ -161,15 +152,21 @@
   gap: 0.5rem;
   margin-top: 0.15rem;
   font-size: 0.76rem;
-  color: var(--text-dim);
+  color: rgba(255, 255, 255, 0.7);
 }
+/* Bulle blanche « Pass » / « mise N » (façon app de référence). */
 .jk-pseat__bid {
-  font-style: italic;
+  font-style: normal;
+  font-weight: 700;
+  background: #fff;
+  color: var(--ink);
+  border-radius: 8px;
+  padding: 0.12rem 0.5rem;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
 }
 .jk-pseat__contract {
-  font-family: var(--font-display);
-  letter-spacing: 0.03em;
-  color: var(--text);
+  font-weight: 700;
+  color: #fff;
 }
 .jk-pseat__contract.is-met {
   color: var(--ok);
@@ -188,10 +185,9 @@
   width: 11px;
   height: 15px;
   border-radius: 2px;
-  background:
-    repeating-linear-gradient(45deg, rgba(216, 177, 96, 0.4) 0 2px, transparent 2px 4px),
-    radial-gradient(circle, #155640, #0a3528);
-  border: 1px solid rgba(216, 177, 96, 0.5);
+  background: repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.35) 0 2px, transparent 2px 4px),
+    #3a75c4;
+  border: 1px solid rgba(255, 255, 255, 0.6);
 }
 
 /* ─── Centre : atout + pli ────────────────────────────────────── */
@@ -217,19 +213,20 @@
   width: clamp(180px, 40vw, 260px);
   height: clamp(180px, 40vw, 260px);
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(255, 227, 154, 0.07), transparent 70%);
-  box-shadow: inset 0 0 0 1px var(--line);
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.06), transparent 70%);
 }
 .jk-trick__slot {
   position: absolute;
   left: 50%;
   top: 50%;
-  --slide-x: 0px;
-  --slide-y: 0px;
-  transform: var(--anchor) translate(var(--slide-x), var(--slide-y));
-  /* Durée alignée sur TRICK_SLIDE_MS (Board.tsx) : la disparition du pli
-     doit coïncider avec la fin du geste, pas le couper. */
-  transition: transform 300ms ease, opacity 300ms ease;
+  transform: var(--anchor);
+}
+/* Couche du pli terminé, superposée au pli en cours : mêmes ancrages
+   (inset 0 sur le conteneur relatif), re-montée à neuf à chaque pli. */
+.jk-trick__overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
 }
 .jk-trick__slot--self {
   --anchor: translate(-50%, 18%);
@@ -244,24 +241,46 @@
   --anchor: translate(18%, -50%);
 }
 
-/* Glissement du pli vers le siège gagnant, juste avant que le pli ne
-   disparaisse (cf. fenêtre des 1800ms dans Board.tsx, déclenchement
-   purement visuel via la prop slideDir — aucune logique de jeu ici). */
-.jk-trick__slot.is-sliding--self {
-  --slide-y: 70px;
-  opacity: 0;
+/* Glissement du pli vers le siège gagnant : animation autonome posée
+   dès le montage de la couche — le délai (= TRICK_PAUSE_MS) et la durée
+   (= TRICK_SLIDE_MS, cf. Board.tsx) sont gérés par le navigateur, sans
+   timer JS pouvant rater le déclenchement. fill-mode "both" fige l'état
+   final (opacity 0) tant que le snapshot n'est pas démonté. */
+.jk-trick__slot.is-collect--self {
+  animation: jk-collect-self 300ms ease 1000ms both;
 }
-.jk-trick__slot.is-sliding--top {
-  --slide-y: -70px;
-  opacity: 0;
+.jk-trick__slot.is-collect--top {
+  animation: jk-collect-top 300ms ease 1000ms both;
 }
-.jk-trick__slot.is-sliding--left {
-  --slide-x: -70px;
-  opacity: 0;
+.jk-trick__slot.is-collect--left {
+  animation: jk-collect-left 300ms ease 1000ms both;
 }
-.jk-trick__slot.is-sliding--right {
-  --slide-x: 70px;
-  opacity: 0;
+.jk-trick__slot.is-collect--right {
+  animation: jk-collect-right 300ms ease 1000ms both;
+}
+@keyframes jk-collect-self {
+  to {
+    transform: var(--anchor) translate(0, 70px);
+    opacity: 0;
+  }
+}
+@keyframes jk-collect-top {
+  to {
+    transform: var(--anchor) translate(0, -70px);
+    opacity: 0;
+  }
+}
+@keyframes jk-collect-left {
+  to {
+    transform: var(--anchor) translate(-70px, 0);
+    opacity: 0;
+  }
+}
+@keyframes jk-collect-right {
+  to {
+    transform: var(--anchor) translate(70px, 0);
+    opacity: 0;
+  }
 }
 
 .jk-played {
@@ -277,11 +296,11 @@
   gap: 0.3rem;
   padding: 0.1rem 0.4rem;
   border-radius: 8px;
-  background: var(--panel-2);
-  border: 1px solid var(--brass);
-  color: var(--brass-bright);
+  background: var(--navy);
+  border: none;
+  color: #fff;
   font-size: 0.66rem;
-  font-family: var(--font-display);
+  font-weight: 700;
   white-space: nowrap;
 }
 .jk-played__joker .is-red {
@@ -292,7 +311,7 @@
    est mis en évidence (halo doré) sur sa carte. */
 .jk-trick__slot.is-winner .jk-played {
   border-radius: 10px;
-  box-shadow: 0 0 0 2px var(--brass-bright), 0 0 18px rgba(255, 227, 154, 0.6);
+  box-shadow: 0 0 0 2px var(--accent-yellow), 0 0 18px rgba(245, 184, 29, 0.55);
   animation: jk-fade-up 0.3s both;
 }
 
@@ -308,9 +327,9 @@
   gap: 0.2rem;
   padding: 0.4rem 0.5rem;
   border-radius: 12px;
-  background: rgba(9, 42, 30, 0.78);
-  border: 1px solid var(--line);
-  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.4);
+  background: #fff;
+  border: none;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.25);
   pointer-events: none;
 }
 .jk-trumpoverlay__bigsuit {
@@ -319,19 +338,17 @@
   justify-content: center;
   width: 2.2rem;
   height: 3.1rem;
-  font-family: var(--font-display);
   font-size: 2.1rem;
   line-height: 1;
-  color: var(--brass-bright);
+  color: var(--ink);
 }
 .jk-trumpoverlay__bigsuit.is-red {
   color: var(--card-red);
 }
 .jk-trumpoverlay__none {
-  font-family: var(--font-display);
+  font-weight: 700;
   font-size: 0.72rem;
-  letter-spacing: 0.02em;
-  color: var(--brass-bright);
+  color: var(--ink);
   text-align: center;
   white-space: nowrap;
 }
@@ -352,28 +369,24 @@
   min-width: 180px;
 }
 .jk-turnnote {
-  font-family: var(--font-display);
-  letter-spacing: 0.05em;
-  color: var(--text-dim);
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.75);
 }
 .jk-turnnote.is-active {
-  color: var(--brass-bright);
+  color: var(--accent-yellow);
 }
 
-/* Bouton récap scores : icône fixe, coin d'écran */
+/* Bouton récap scores (menu ≡, dans l'en-tête à droite) */
 .jk-scorebtn {
-  position: fixed;
-  bottom: 0.8rem;
-  left: 0.8rem;
-  z-index: 20;
-  width: 44px;
-  height: 44px;
+  width: 42px;
+  height: 42px;
   padding: 0;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.25rem;
+  font-size: 1.15rem;
+  flex: none;
 }
 
 /* Overlay d'enchère : grand, centré, visible uniquement à mon tour */
@@ -435,11 +448,12 @@
   gap: 0.8rem;
   padding: 0.7rem 1rem;
   border-radius: 12px;
-  background: rgba(232, 118, 92, 0.16);
-  border: 1px solid rgba(232, 118, 92, 0.6);
-  color: #ffd9cd;
+  background: var(--accent-red);
+  border: none;
+  color: #fff;
   font-size: 0.9rem;
-  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
+  font-weight: 600;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.3);
   animation: jk-fade-up 0.3s both;
   max-width: 90vw;
 }
@@ -464,7 +478,7 @@
   align-items: center;
   justify-content: center;
   padding: 1.2rem;
-  background: rgba(3, 18, 12, 0.66);
+  background: rgba(15, 30, 22, 0.5);
   backdrop-filter: blur(3px);
 }
 
@@ -510,11 +524,13 @@
   font-size: 1.4rem;
   padding: 0.5rem;
 }
-.jk-modal__suit.is-red {
+/* Préfixe .jk-panel : bat .jk-panel .jk-btn (couleur encre par défaut sur
+   surface claire) pour que les couleurs des enseignes rouges ressortent. */
+.jk-panel .jk-modal__suit.is-red {
   color: var(--card-red);
 }
-.jk-modal__suit.jk-btn--primary.is-red {
-  color: #7a1410;
+.jk-panel .jk-modal__suit.jk-btn--primary.is-red {
+  color: #ffd9d5;
 }
 .jk-modal__actions {
   display: flex;
@@ -555,34 +571,32 @@
   align-items: center;
   gap: 0.8rem;
   padding: 0.8rem 1rem;
-  border-radius: 12px;
-  background: rgba(0, 0, 0, 0.24);
-  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #fff;
+  color: var(--ink);
+  border: none;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12);
 }
 .jk-gameover__row:first-child {
-  border-color: var(--brass-bright);
-  background: rgba(216, 177, 96, 0.12);
+  background: var(--accent-yellow);
 }
 .jk-gameover__row.is-me {
-  box-shadow: inset 0 0 0 1px var(--line-strong);
+  box-shadow: 0 0 0 2.5px var(--accent-blue), 0 6px 18px rgba(0, 0, 0, 0.12);
 }
 .jk-gameover__rank {
-  font-family: var(--font-display);
-  font-weight: 700;
+  font-weight: 800;
   font-size: 1.2rem;
-  color: var(--brass-bright);
   width: 1.6rem;
 }
 .jk-gameover__name {
   text-align: left;
-  font-family: var(--font-display);
+  font-weight: 700;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .jk-gameover__score {
-  font-family: var(--font-display);
-  color: var(--brass);
+  font-weight: 800;
 }
 
 /* ════════════════════════════════════════════════════════════════
@@ -592,7 +606,7 @@
    ════════════════════════════════════════════════════════════════ */
 @media (max-width: 720px) {
   .jk-table__felt {
-    --card-w: 50px;
+    --card-w: 58px;
     grid-template-columns: minmax(58px, 0.85fr) minmax(140px, 2fr) minmax(58px, 0.85fr);
     grid-template-rows: auto 1fr auto;
     grid-template-areas:
@@ -634,12 +648,6 @@
     padding: 0.3rem 0.25rem;
     gap: 0.15rem;
   }
-  .jk-pos--left .jk-pseat__avatar,
-  .jk-pos--right .jk-pseat__avatar {
-    width: 32px;
-    height: 32px;
-    font-size: 0.85rem;
-  }
   .jk-pos--left .jk-pseat__name,
   .jk-pos--right .jk-pseat__name {
     max-width: 58px;
@@ -673,7 +681,7 @@
   }
 
   .jk-hand__slot {
-    margin-left: -26px;
+    margin-left: -30px;
   }
   .jk-myzone {
     justify-content: center;

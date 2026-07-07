@@ -17,7 +17,7 @@ export function Register() {
   }
 
   return (
-    <div className="jk-home">
+    <div className="jk-home jk-home--auth">
       <header className="jk-home__head jk-fade-up">
         <div className="jk-eyebrow">Salon de cartes géorgien</div>
         <h1 className="jk-brand jk-home__title">Joker</h1>
