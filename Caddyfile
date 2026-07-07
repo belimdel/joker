@@ -1,0 +1,13 @@
+# Caddyfile — reverse proxy HTTPS pour Joker.
+# Le domaine et le port interne viennent de variables d'environnement
+# (passées par docker-compose), rien n'est hardcodé.
+#
+# Caddy obtient et renouvelle automatiquement le certificat TLS pour
+# {$JOKER_DOMAIN} via Let's Encrypt (nécessite que le domaine public pointe
+# sur cette machine et que les ports 80/443 soient forwardés par la box).
+#
+# Le WebSocket de Socket.IO (Upgrade) est géré nativement par reverse_proxy :
+# aucune directive supplémentaire nécessaire.
+{$JOKER_DOMAIN} {
+	reverse_proxy joker:{$PORT}
+}

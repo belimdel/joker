@@ -1,0 +1,40 @@
+# Dépendances : réinstallées dans l'image via npm ci (jamais les node_modules
+# de l'hôte, potentiellement Windows/incompatibles Linux).
+node_modules
+**/node_modules
+
+# Historique git et config outillage
+.git
+.gitignore
+.claude
+
+# Secrets et env locaux — JAMAIS dans l'image
+.env
+.env.local
+**/.env
+**/.env.local
+
+# Builds locaux : le client est rebuild dans l'étape builder ; les dist du
+# serveur/shared ne servent pas (runtime tsx sur les sources).
+client/dist
+server/dist
+shared/dist
+dist
+dist-ssr
+
+# Tests et docs : inutiles au runtime
+**/*.test.ts
+md/
+handoff.md
+DEPLOY.md
+*.log
+
+# Fichiers Docker eux-mêmes (pas besoin dans le contexte de build)
+Dockerfile
+.dockerignore
+docker-compose.yml
+Caddyfile
+
+# OS
+.DS_Store
+Thumbs.db

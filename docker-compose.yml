@@ -1,0 +1,49 @@
+# ─────────────────────────────────────────────────────────────────────────
+# Joker — pile d'auto-hébergement : l'app (joker) derrière un reverse proxy
+# Caddy qui gère le HTTPS automatique (Let's Encrypt).
+#
+# Réseau : bridge par défaut de compose. Les deux services se joignent par
+# leur nom (`joker`, `caddy`). ⚠️ PAS de network_mode: host (interdit /
+# non fonctionnel sous Docker Desktop Windows).
+#
+# Secrets : lus depuis un fichier .env gitignoré (voir .env.example).
+# ─────────────────────────────────────────────────────────────────────────
+
+services:
+  # ── Application (Express + Socket.IO + client React buildé) ────────────
+  joker:
+    build: .
+    # Secrets & config injectés au run (jamais dans l'image) :
+    # DATABASE_URL, SMTP_USER, SMTP_PASS, NODE_ENV, PORT, CLIENT_URL.
+    env_file: .env
+    restart: unless-stopped
+    # Port exposé UNIQUEMENT au réseau interne compose : seul Caddy y accède.
+    # Aucun mapping "ports:" vers l'hôte → l'app n'est pas joignable en clair
+    # depuis l'extérieur, tout passe par Caddy en TLS.
+    expose:
+      - "${PORT:-3001}"
+
+  # ── Reverse proxy TLS (HTTPS automatique via Let's Encrypt) ────────────
+  caddy:
+    image: caddy:latest
+    restart: unless-stopped
+    depends_on:
+      - joker
+    # 80 = challenge HTTP-01 de Let's Encrypt + redirection ; 443 = HTTPS.
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      # Injectées dans le Caddyfile via {$JOKER_DOMAIN} / {$PORT}.
+      JOKER_DOMAIN: ${JOKER_DOMAIN}
+      PORT: ${PORT:-3001}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # Persistance des certificats : SANS ces volumes, Caddy redemande un
+      # certificat à chaque redémarrage → rate-limit Let's Encrypt.
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  caddy_data:
+  caddy_config:
