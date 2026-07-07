@@ -10,7 +10,9 @@
   border-radius: calc(var(--w) * 0.12);
   padding: 0;
   border: none;
-  font-family: var(--font-display);
+  /* Inter (corps) plutôt qu'Oswald condensé : rangs et "10" bien plus
+     lisibles à petite taille (écran de téléphone). */
+  font-family: var(--font-body);
   background: linear-gradient(150deg, var(--card-cream), var(--card-cream-2));
   box-shadow:
     0 6px 14px rgba(0, 0, 0, 0.4),
@@ -86,68 +88,70 @@
   transform: rotate(180deg);
 }
 .jk-card__rank {
-  font-weight: 700;
-  font-size: calc(var(--w) * 0.26);
+  font-weight: 800;
+  font-size: calc(var(--w) * 0.36);
+  letter-spacing: -0.02em;
 }
 .jk-card__suit {
-  font-size: calc(var(--w) * 0.2);
-  margin-top: calc(var(--w) * 0.01);
+  font-size: calc(var(--w) * 0.32);
+  line-height: 1;
+  margin-top: calc(var(--w) * -0.01);
 }
 
-/* Gros symbole central */
+/* Gros symbole central (cartes numériques 6→10) : bien net et grand. */
 .jk-card__pip {
   position: absolute;
   inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: calc(var(--w) * 0.62);
-  opacity: 0.92;
-  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.5);
+  font-size: calc(var(--w) * 0.78);
+  line-height: 1;
 }
 
-/* ─── Joker ─── */
-.jk-card--joker {
-  background: linear-gradient(160deg, #11402f, #0b2c20);
-  color: var(--brass-bright);
-  box-shadow:
-    0 6px 14px rgba(0, 0, 0, 0.45),
-    inset 0 0 0 2px rgba(216, 177, 96, 0.55),
-    inset 0 0 0 5px rgba(255, 255, 255, 0.04);
-}
-.jk-card__joker {
+/* Figures (J/Q/K/A) : grande lettre + enseigne, bien lisibles */
+.jk-card__court {
   position: absolute;
   inset: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: calc(var(--w) * 0.06);
+  gap: calc(var(--w) * 0.02);
 }
-.jk-card__joker-star {
-  font-size: calc(var(--w) * 0.5);
-  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.5));
-  animation: jk-joker-twinkle 3s ease-in-out infinite;
+.jk-card__court-letter {
+  font-weight: 800;
+  font-size: calc(var(--w) * 0.66);
+  line-height: 0.82;
+  letter-spacing: -0.02em;
 }
-.jk-card__joker-word {
-  font-size: calc(var(--w) * 0.155);
-  letter-spacing: 0.22em;
-  font-weight: 700;
-}
-@keyframes jk-joker-twinkle {
-  0%, 100% { transform: rotate(0deg) scale(1); opacity: 0.92; }
-  50% { transform: rotate(8deg) scale(1.08); opacity: 1; }
+.jk-card__court-suit {
+  font-size: calc(var(--w) * 0.4);
+  line-height: 1;
 }
 
-/* ─── Dos de carte (ornement laiton) ─── */
+/* ─── Joker ─── */
+/* Carte-image plein cadre : ton SVG (public/joker_image.svg) est en 5/7,
+   il occupe 100 % de la carte via object-fit: cover — aucun fond, aucun bord.
+   On garde juste l'ombre portée qui donne le relief comme aux autres cartes. */
+.jk-card--joker {
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.4);
+}
+.jk-card__joker {
+  position: absolute;
+  inset: 0;
+  display: block;
+}
+
+/* ─── Dos de carte (bleu flat) ─── */
 .jk-card--back {
   background:
-    repeating-linear-gradient(45deg, rgba(216, 177, 96, 0.16) 0 6px, transparent 6px 12px),
-    radial-gradient(circle at 50% 50%, #155640, #0a3528 70%);
+    repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.14) 0 6px, transparent 6px 12px),
+    linear-gradient(160deg, #3a75c4, #2b5a9c);
   box-shadow:
-    0 6px 14px rgba(0, 0, 0, 0.4),
-    inset 0 0 0 2px rgba(216, 177, 96, 0.5),
-    inset 0 0 0 5px rgba(0, 0, 0, 0.15);
+    0 6px 14px rgba(0, 0, 0, 0.3),
+    inset 0 0 0 2px rgba(255, 255, 255, 0.5),
+    inset 0 0 0 5px rgba(0, 0, 0, 0.12);
 }
 .jk-card__back {
   position: absolute;
@@ -155,11 +159,11 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid rgba(216, 177, 96, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.55);
   border-radius: calc(var(--w) * 0.08);
 }
 .jk-card__back-emblem {
-  color: var(--brass);
+  color: #fff;
   font-size: calc(var(--w) * 0.32);
   opacity: 0.85;
 }

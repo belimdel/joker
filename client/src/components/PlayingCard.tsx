@@ -1,5 +1,6 @@
 import type { CSSProperties } from "react";
 import type { Card, Suit } from "@shared/cards";
+import { JokerCardArt } from "./JokerCardArt";
 import "./card.css";
 
 const SUIT: Record<Suit, { glyph: string; tone: "red" | "ink" }> = {
@@ -8,6 +9,10 @@ const SUIT: Record<Suit, { glyph: string; tone: "red" | "ink" }> = {
   diamonds: { glyph: "♦", tone: "red" },
   clubs: { glyph: "♣", tone: "ink" },
 };
+
+// Figures : on met une GRANDE lettre au centre (au lieu d'un simple pip)
+// pour qu'un Valet/Dame/Roi/As se lise d'un coup d'œil.
+const COURT_RANKS = new Set(["J", "Q", "K", "A"]);
 
 export type PlayingCardProps = {
   card?: Card; // absent ou faceDown → dos de carte
@@ -34,16 +39,23 @@ function CardFace({ card }: { card: Card }) {
   if (card.type === "joker") {
     return (
       <span className="jk-card__joker">
-        <span className="jk-card__joker-star">✦</span>
-        <span className="jk-card__joker-word">JOKER</span>
+        <JokerCardArt />
       </span>
     );
   }
   const s = SUIT[card.suit];
+  const isCourt = COURT_RANKS.has(card.rank);
   return (
     <span className={`jk-card__face jk-card__face--${s.tone}`}>
       <Corner rank={card.rank} glyph={s.glyph} place="tl" />
-      <span className="jk-card__pip">{s.glyph}</span>
+      {isCourt ? (
+        <span className="jk-card__court">
+          <span className="jk-card__court-letter">{card.rank}</span>
+          <span className="jk-card__court-suit">{s.glyph}</span>
+        </span>
+      ) : (
+        <span className="jk-card__pip">{s.glyph}</span>
+      )}
       <Corner rank={card.rank} glyph={s.glyph} place="br" />
     </span>
   );
