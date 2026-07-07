@@ -1,4 +1,5 @@
 import type { Card, Suit } from "./cards";
+import type { GameMode, KhishtiPenalty } from "./game";
 import type { JokerAnnounce } from "./trick";
 import type { PlayerView } from "./views";
 
@@ -26,13 +27,34 @@ export type WelcomePayload = {
 export type CreateGamePayload = {
   pseudo: string;
   visibility?: 'public' | 'private'; // défaut 'public' si absent
+  // ── Options de room (v6, toutes facultatives → défauts serveur) ──
+  mode?: GameMode; // défaut 'standard'
+  khishtiPenalty?: KhishtiPenalty; // mise « Dring », défaut 200
+  // L'hôte demande une partie classée. Le serveur ne la valide au démarrage
+  // que si les 4 joueurs sont humains ET authentifiés (sinon practice).
+  ranked?: boolean;
+  // Mode 2 contre 2 (partenaires sièges 0+2 vs 1+3). Défaut false = « chacun
+  // pour soi ».
+  pairs?: boolean;
+};
+
+// Joueur affiché sur une carte de room publique (avatar + rang).
+export type PublicGamePlayer = {
+  pseudo: string;
+  level: number | null; // null = invité
 };
 
 // Résumé public d'une partie visible dans le lobby (anti-triche : AUCUNE donnée de jeu).
 export type PublicGameSummary = {
   roomCode: string;
   hostUsername: string;
+  hostLevel: number | null;
   playerCount: number;
+  players: PublicGamePlayer[]; // triés par siège
+  mode: GameMode;
+  khishtiPenalty: KhishtiPenalty;
+  ranked: boolean; // ranked DEMANDÉ par l'hôte
+  pairs: boolean; // mode 2 contre 2 (affiche le VS sur la carte de room)
   createdAt: number; // Date.now() à la création
 };
 
@@ -48,6 +70,12 @@ export type JoinGamePayload = {
   pseudo: string;
 };
 
+// Le client (en salle d'attente) demande à changer de siège. Le serveur
+// n'accepte le déplacement que si la partie est en attente et le siège LIBRE.
+export type ChooseSeatPayload = {
+  seat: number; // siège visé 0-3
+};
+
 // Diffusé à TOUTE la room quand la présence change (arrivée/départ).
 export type LobbyUpdatePayload = {
   gameId: string;
@@ -55,6 +83,11 @@ export type LobbyUpdatePayload = {
   players: PlayerPublic[]; // triés par siège
   // Niveau de chaque siège (index = siège 0-3) ; null = invité ou bot.
   playerLevels: (number | null)[];
+  // Options de la room (badges du lobby : mode, mise, ranked).
+  mode: GameMode;
+  khishtiPenalty: KhishtiPenalty;
+  ranked: boolean; // ranked demandé par l'hôte
+  pairs: boolean; // mode 2 contre 2 (VS au milieu + équipes cliquables)
 };
 
 // ── Payloads de JEU (intentions du client) ──
@@ -118,6 +151,8 @@ export type SessionRestoredPayload = {
 export interface ClientToServerEvents {
   createGame: (payload: CreateGamePayload) => void;
   joinGame: (payload: JoinGamePayload) => void;
+  // Changer de siège en salle d'attente (choix de sa place / de son équipe).
+  chooseSeat: (payload: ChooseSeatPayload) => void;
   // Quitter la partie. Le SERVEUR résout le siège depuis le socket (jamais
   // depuis un payload) : en lobby → libère le siège ; en partie démarrée →
   // garde le siège (le bot de timeout joue), le joueur pourra revenir.

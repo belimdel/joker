@@ -8,7 +8,7 @@ import { BidStatus } from "../components/BidStatus";
 import { TrumpOverlay } from "../components/TrumpOverlay";
 import { BidOverlay } from "../components/BidOverlay";
 import { TrumpChoiceOverlay } from "../components/TrumpChoiceOverlay";
-import { ScoreModal } from "../components/ScoreModal";
+import { ScoreModal, ScoreTable, ScoreModeLabel } from "../components/ScoreModal";
 import { isLegalPlay } from "@shared/round";
 import { rankStrength, type Card, type Suit } from "@shared/cards";
 import type { JokerAnnounce, PlayedCard } from "@shared/trick";
@@ -192,43 +192,41 @@ function Hand({
 }
 
 // ─── Écran de fin de partie ───────────────────────────────────────
+// On garde la feuille de score COMPLÈTE affichée (comme pendant la
+// partie) : les positions finales apparaissent sous chaque colonne
+// (ScoreTable), et le bandeau du haut porte le mode + le bouton Rejouer.
 function GameOver({
   view,
   pseudoOf,
   onReplay,
+  onShowScores,
 }: {
   view: PlayerView;
   pseudoOf: (seat: number) => string;
   onReplay: () => void;
+  onShowScores: () => void;
 }) {
-  const ranking = view.scores
-    .map((score, seat) => ({ seat, score }))
-    .sort((a, b) => b.score - a.score);
-
   return (
-    <div className="jk-gameover">
-      <div className="jk-eyebrow">Partie terminée</div>
-      <h1 className="jk-brand" style={{ fontSize: "2rem" }}>
-        Classement final
-      </h1>
-      <ol className="jk-gameover__list">
-        {ranking.map((r, idx) => (
-          <li
-            key={r.seat}
-            className={`jk-gameover__row ${r.seat === view.you ? "is-me" : ""}`}
+    <div className="jk-scoretable">
+      <header className="jk-scoretable__header">
+        <ScoreModeLabel view={view} />
+        <div className="jk-scoretable__headactions">
+          <button
+            type="button"
+            className="jk-btn jk-scorebtn"
+            onClick={onShowScores}
+            aria-label="Voir les scores"
+            title="Scores"
           >
-            <span className="jk-gameover__rank">{idx === 0 ? "♛" : idx + 1}</span>
-            <span className="jk-gameover__name">
-              {pseudoOf(r.seat)}
-              {r.seat === view.you ? " (vous)" : ""}
-            </span>
-            <span className="jk-gameover__score">{r.score} pts</span>
-          </li>
-        ))}
-      </ol>
-      <button type="button" className="jk-btn jk-btn--primary" onClick={onReplay}>
-        Rejouer
-      </button>
+            ☰
+          </button>
+          <button type="button" className="jk-btn jk-btn--primary jk-btn--sm" onClick={onReplay}>
+            Rejouer
+          </button>
+        </div>
+      </header>
+      <div className="jk-scoretable__finalnote">Partie terminée — classement final</div>
+      <ScoreTable view={view} pseudoOf={pseudoOf} />
     </div>
   );
 }
@@ -363,8 +361,21 @@ export function Board() {
   const isMyTurn = view.currentPlayer === me;
 
   // Fin de partie : classement final (la dernière vue a gamePhase "finished").
+  // On garde le bouton ☰ pour rouvrir le tableau de score plein écran.
   if (view.gamePhase === "finished") {
-    return <GameOver view={view} pseudoOf={pseudoOf} onReplay={leaveGame} />;
+    return (
+      <>
+        <GameOver
+          view={view}
+          pseudoOf={pseudoOf}
+          onReplay={leaveGame}
+          onShowScores={() => setShowScores(true)}
+        />
+        {showScores && (
+          <ScoreModal view={view} pseudoOf={pseudoOf} onClose={() => setShowScores(false)} />
+        )}
+      </>
+    );
   }
 
   // Clic sur une carte de ma main : un Joker ouvre la modale, sinon on joue.
@@ -402,7 +413,7 @@ export function Board() {
     <div className="jk-table">
       <header className="jk-table__header">
         <button type="button" className="jk-btn jk-btn--ghost jk-table__leave" onClick={confirmLeave}>
-          Quitter
+          🔒 Leave
         </button>
         <div className="jk-table__deal">
           <span className="jk-eyebrow">
@@ -413,6 +424,15 @@ export function Board() {
             {trumpLabel(view.trumpSuit)}
           </span>
         </div>
+        <button
+          type="button"
+          className="jk-btn jk-scorebtn"
+          onClick={() => setShowScores(true)}
+          aria-label="Voir les scores"
+          title="Scores"
+        >
+          ☰
+        </button>
       </header>
 
       <ErrorToast error={error} onClose={clearError} />
@@ -422,16 +442,6 @@ export function Board() {
         trumpSuit={view.trumpSuit}
         roundPhase={view.roundPhase}
       />
-
-      <button
-        type="button"
-        className="jk-btn jk-scorebtn"
-        onClick={() => setShowScores(true)}
-        aria-label="Voir les scores"
-        title="Scores"
-      >
-        🏆
-      </button>
 
       <div className="jk-table__felt">
         {opponents.map((seat) => (

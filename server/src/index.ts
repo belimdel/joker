@@ -106,6 +106,10 @@ function lobbyPayload(game: NetworkGame): LobbyUpdatePayload {
     status: game.status,
     players: manager.publicPlayers(game),
     playerLevels: levels,
+    mode: game.config.mode,
+    khishtiPenalty: game.config.khishtiPenalty,
+    ranked: game.rankedRequested,
+    pairs: game.config.pairs === true,
   };
 }
 
@@ -140,9 +144,16 @@ function notifyLockLifted(game: NetworkGame): void {
 
 // Délai d'auto-jeu pour un siège bot (mode solo de test) : on veut une
 // partie rapide à observer, pas un timeout pensé pour couvrir un humain
-// déconnecté. Ne concerne QUE les sièges marqués isBot — le délai des
-// sièges humains (TURN_DURATION_MS) n'est jamais modifié.
+// déconnecté.
 const BOT_TURN_DELAY_MS = 800;
+
+// En partie SOLO DE TEST (la table contient des bots), le siège humain
+// joue aussi vite : la partie défile pour voir comment elle se termine.
+// Un peu plus long que les bots pour laisser l'animation du pli se jouer
+// et permettre un clic manuel si on le souhaite. Ne s'applique JAMAIS à
+// une vraie partie multijoueur (aucun siège isBot) : là le délai humain
+// reste TURN_DURATION_MS (15s).
+const SOLO_HUMAN_TURN_DELAY_MS = 1500;
 
 // ─── Timer de tour (15s, ou 800ms pour un siège bot) + auto-jeu ──
 // Le serveur fait autorité sur le temps : à chaque changement de
@@ -163,7 +174,14 @@ function scheduleTurnTimer(game: NetworkGame): void {
 
   const seat = game.state.round.currentPlayer;
   const isBotTurn = game.players.find((p) => p.seat === seat)?.isBot ?? false;
-  const delay = isBotTurn ? BOT_TURN_DELAY_MS : TURN_DURATION_MS;
+  // La table contient-elle des bots ? ⇒ partie solo de test (cf. addBotPlayers) :
+  // même en attendant l'humain, on accélère pour dérouler la partie.
+  const isSoloTest = game.players.some((p) => p.isBot);
+  const delay = isBotTurn
+    ? BOT_TURN_DELAY_MS
+    : isSoloTest
+      ? SOLO_HUMAN_TURN_DELAY_MS
+      : TURN_DURATION_MS;
 
   game.turnStartedAt = Date.now();
   game.turnTimer = setTimeout(() => {
@@ -294,7 +312,7 @@ io.on("connection", (socket) => {
   });
 
   // ── Créer une partie ──
-  socket.on("createGame", async ({ pseudo, visibility }) => {
+  socket.on("createGame", async ({ pseudo, visibility, mode, khishtiPenalty, ranked, pairs }) => {
     const userId = socket.data.userId ?? null;
     // Verrou : une seule partie démarrée en cours par identité.
     const active = manager.activeGameFor(userId, sessionId);
@@ -311,7 +329,12 @@ io.on("connection", (socket) => {
       return;
     }
     const vis = visibility === 'private' ? 'private' : 'public';
-    const game = manager.createGame(name, socket.id, sessionId, userId, vis, level);
+    // Les options sont validées/normalisées par sanitizeRoomOptions (manager).
+    const game = manager.createGame(
+      name, socket.id, sessionId, userId,
+      { visibility: vis, mode, khishtiPenalty, ranked, pairs },
+      level,
+    );
     socket.leave('lobby-browser');
     socket.join(game.gameId);
     socket.emit("gameCreated", { gameId: game.gameId, seat: 0 });
@@ -387,6 +410,25 @@ io.on("connection", (socket) => {
     console.log(`🚀 Partie ${game.gameId} démarrée (ranked=${game.ranked}).`);
   });
 
+  // ── Changer de siège en salle d'attente (choix de sa place / équipe) ──
+  socket.on("chooseSeat", ({ seat }) => {
+    const game = manager.getGameBySocket(socket.id);
+    if (!game) {
+      socket.emit("gameError", { code: "GAME_NOT_FOUND", message: "Vous n'êtes dans aucune partie." });
+      return;
+    }
+    try {
+      const newSeat = manager.moveToSeat(game, socket.id, seat);
+      // Accusé ciblé : le client met à jour son siège (mySeat/isHost).
+      const me = game.players.find((p) => p.socketId === socket.id);
+      socket.emit("sessionRestored", { gameId: game.gameId, seat: newSeat, pseudo: me?.pseudo ?? "" });
+      io.to(game.gameId).emit("lobbyUpdate", lobbyPayload(game));
+      if (game.visibility === 'public') broadcastPublicGames();
+    } catch (e) {
+      socket.emit("gameError", toGameError(e));
+    }
+  });
+
   // ── Partie solo de test (1 humain + 3 bots, démarrage immédiat) ──
   socket.on("startTestGame", async ({ pseudo }) => {
     const userId = socket.data.userId ?? null;
@@ -404,7 +446,7 @@ io.on("connection", (socket) => {
       socket.emit("gameError", { code: "INVALID_PAYLOAD", message: "Pseudo manquant." });
       return;
     }
-    const game = manager.createGame(name, socket.id, sessionId, userId, 'private', level);
+    const game = manager.createGame(name, socket.id, sessionId, userId, { visibility: 'private' }, level);
     manager.addBotPlayers(game);
     socket.leave('lobby-browser');
     socket.join(game.gameId);

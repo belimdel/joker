@@ -17,6 +17,29 @@ export type DealPlan = {
   cardsPerPlayer: number;
 };
 
+// ─── Configuration d'une partie (choisie à la création de la room) ──
+// mode : structure des donnes. khishtiPenalty : montant (positif) de la
+// pénalité de xisht — la « mise Dring » -200/-500/-1000 de la room.
+export type GameMode = "standard" | "only9";
+
+export const KHISHTI_PENALTIES = [200, 500, 1000] as const;
+export type KhishtiPenalty = (typeof KHISHTI_PENALTIES)[number];
+
+export type GameConfig = {
+  mode: GameMode;
+  khishtiPenalty: KhishtiPenalty;
+  // Mode 2 contre 2 : partenaires assis en face (sièges 0+2 vs 1+3). Optionnel
+  // → absent/false = « chacun pour soi ». Le moteur de score reste INDIVIDUEL ;
+  // les équipes sont une couche d'affichage (somme des 2 partenaires) et le
+  // choix du siège en lobby. L'ordre de tour 0→1→2→3 alterne déjà les équipes.
+  pairs?: boolean;
+};
+
+export const DEFAULT_GAME_CONFIG: GameConfig = {
+  mode: "standard",
+  khishtiPenalty: 200,
+};
+
 export type GamePhase = "playing" | "finished";
 
 // ─── Résultat d'une donne TERMINÉE (historique) ──────────────────
@@ -42,7 +65,8 @@ export type DealResult = {
 
 export type GameState = {
   playerCount: number;
-  schedule: DealPlan[]; // la séquence ordonnée des 24 donnes
+  config: GameConfig; // mode + pénalité de xisht (fixés à la création)
+  schedule: DealPlan[]; // la séquence ordonnée des donnes
   currentDealIndex: number; // indice de la donne en cours dans schedule
   dealerIndex: number; // donneur de la manche EN COURS
   round: RoundState; // la manche en cours (type réutilisé de round.ts)
@@ -67,10 +91,16 @@ export type GameState = {
 //   Set 2 : 8 donnes  → 8,7,6,5,4,3,2,1 cartes
 //   Set 3 : 4 donnes  → 9 cartes
 //
+// Mode "only9" : 4 sets de 4 donnes, toutes à 9 cartes (16 donnes) —
+// mêmes règles de prime/effacement de fin de set que le standard.
+//
 // NB : seule la structure à 4 joueurs est implémentée pour l'instant.
 // Les structures 3/5/6 joueurs diffèrent (document) et seront ajoutées
 // plus tard ; le code est isolé ici pour faciliter cette extension.
-export function buildGameSchedule(playerCount: number): DealPlan[] {
+export function buildGameSchedule(
+  playerCount: number,
+  mode: GameMode = "standard"
+): DealPlan[] {
   if (playerCount !== 4) {
     throw new Error(
       `buildGameSchedule : seule la structure à 4 joueurs est implémentée (reçu ${playerCount}).`
@@ -78,6 +108,16 @@ export function buildGameSchedule(playerCount: number): DealPlan[] {
   }
 
   const schedule: DealPlan[] = [];
+
+  if (mode === "only9") {
+    // 4 sets × 4 donnes de 9 cartes.
+    for (let set = 0; set < 4; set++) {
+      for (let i = 0; i < 4; i++) {
+        schedule.push({ setIndex: set, cardsPerPlayer: 9 });
+      }
+    }
+    return schedule;
+  }
 
   // Set 0 : 1 → 8 cartes.
   for (let n = 1; n <= 8; n++) {
@@ -103,14 +143,17 @@ export function buildGameSchedule(playerCount: number): DealPlan[] {
 // Construit le schedule et lance la première manche (deck mélangé +
 // createRound avec le cardsPerPlayer de la donne 0).
 // Convention : le joueur 0 est le donneur de la première manche.
-export function createGame(playerCount: number): GameState {
+export function createGame(
+  playerCount: number,
+  config: GameConfig = DEFAULT_GAME_CONFIG
+): GameState {
   if (playerCount !== 4) {
     throw new Error(
       `createGame : seule la partie à 4 joueurs est implémentée pour l'instant (reçu ${playerCount}).`
     );
   }
 
-  const schedule = buildGameSchedule(playerCount);
+  const schedule = buildGameSchedule(playerCount, config.mode);
   const dealerIndex = 0;
   const first = schedule[0];
   const round = createRound(
@@ -122,6 +165,7 @@ export function createGame(playerCount: number): GameState {
 
   return {
     playerCount,
+    config,
     schedule,
     currentDealIndex: 0,
     dealerIndex,
@@ -164,7 +208,9 @@ export function advanceToNextRound(state: GameState): GameState {
       );
     }
     bids.push(bid);
-    roundScores.push(computePlayerScore(bid, round.tricksWon[p], cardsPerPlayer));
+    roundScores.push(
+      computePlayerScore(bid, round.tricksWon[p], cardsPerPlayer, state.config.khishtiPenalty)
+    );
   }
 
   // 2. Cumul des scores.

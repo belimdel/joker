@@ -1,11 +1,41 @@
 import { randomUUID } from "crypto";
-import { createGame, GameState } from "../../shared/game";
+import { createGame, DEFAULT_GAME_CONFIG, GameState, KHISHTI_PENALTIES } from "../../shared/game";
+import type { GameConfig, GameMode, KhishtiPenalty } from "../../shared/game";
 import type {
   GameStatus,
   PlayerPublic,
   GameErrorCode,
   PublicGameSummary,
 } from "../../shared/events";
+
+// Options de room reçues du client à la création (toutes facultatives).
+export type RoomOptions = {
+  visibility?: 'public' | 'private';
+  mode?: GameMode;
+  khishtiPenalty?: KhishtiPenalty;
+  ranked?: boolean;
+  pairs?: boolean; // mode 2 contre 2
+};
+
+// Valide/normalise les options client (défauts + rejet des valeurs inconnues).
+export function sanitizeRoomOptions(opts: RoomOptions | undefined): {
+  visibility: 'public' | 'private';
+  config: GameConfig;
+  rankedRequested: boolean;
+} {
+  const visibility = opts?.visibility === 'private' ? 'private' : 'public';
+  const mode: GameMode = opts?.mode === 'only9' ? 'only9' : 'standard';
+  const khishtiPenalty: KhishtiPenalty = (KHISHTI_PENALTIES as readonly number[]).includes(
+    opts?.khishtiPenalty as number
+  )
+    ? (opts!.khishtiPenalty as KhishtiPenalty)
+    : DEFAULT_GAME_CONFIG.khishtiPenalty;
+  return {
+    visibility,
+    config: { mode, khishtiPenalty, pairs: opts?.pairs === true },
+    rankedRequested: opts?.ranked === true,
+  };
+}
 
 export const MAX_PLAYERS = 4;
 export const ID_LENGTH = 4;
@@ -56,7 +86,10 @@ export type NetworkGame = {
   turnTimer: ReturnType<typeof setTimeout> | null;
   // V5 : lobby global et persistance
   visibility: 'public' | 'private';
-  ranked: boolean;       // figé au démarrage effectif (4 humains = true)
+  // V6 : options de room (mode + mise) et souhait « ranked » de l'hôte.
+  config: GameConfig;
+  rankedRequested: boolean;
+  ranked: boolean;       // figé au démarrage effectif (4 humains authentifiés + demandé)
   startedAt: number | null;
   createdAt: number;
   alreadyPersisted: boolean; // garde contre double-écriture BDD (LOT 5)
@@ -95,9 +128,10 @@ export class GameManager {
     socketId: string,
     sessionId: string,
     userId: string | null = null,
-    visibility: 'public' | 'private' = 'public',
+    options: RoomOptions = {},
     level: number | null = null,
   ): NetworkGame {
+    const { visibility, config, rankedRequested } = sanitizeRoomOptions(options);
     const gameId = this.generateUniqueId();
     const game: NetworkGame = {
       gameId,
@@ -107,6 +141,8 @@ export class GameManager {
       turnStartedAt: 0,
       turnTimer: null,
       visibility,
+      config,
+      rankedRequested,
       ranked: false,
       startedAt: null,
       createdAt: Date.now(),
@@ -374,11 +410,36 @@ export class GameManager {
         `Il faut ${MAX_PLAYERS} joueurs pour démarrer (actuellement ${game.players.length}).`
       );
     }
-    game.state = createGame(MAX_PLAYERS);
+    game.state = createGame(MAX_PLAYERS, game.config);
     game.status = "in-progress";
     game.startedAt = Date.now();
-    // ranked = tous les sièges sont humains (aucun isBot)
-    game.ranked = game.players.every(p => !p.isBot && p.userId !== null);
+    // ranked = demandé par l'hôte ET tous les sièges humains authentifiés
+    // (sinon la partie retombe silencieusement en practice).
+    game.ranked =
+      game.rankedRequested && game.players.every(p => !p.isBot && p.userId !== null);
+  }
+
+  // ── Changer de siège en salle d'attente ──
+  // Le joueur (résolu depuis son socket) se déplace vers `seat` s'il est LIBRE.
+  // Refusé si la partie a démarré, si le siège est hors bornes ou occupé.
+  // Retourne le nouveau siège. Pas d'échange : déplacement vers un siège vide.
+  moveToSeat(game: NetworkGame, socketId: string, seat: number): number {
+    if (game.status !== "waiting") {
+      throw new GameManagerError("GAME_IN_PROGRESS", "La partie a déjà démarré.");
+    }
+    if (!Number.isInteger(seat) || seat < 0 || seat >= MAX_PLAYERS) {
+      throw new GameManagerError("INVALID_PAYLOAD", `Siège invalide : ${seat}.`);
+    }
+    const player = game.players.find((p) => p.socketId === socketId);
+    if (!player) {
+      throw new GameManagerError("GAME_NOT_FOUND", "Vous n'êtes pas dans cette partie.");
+    }
+    if (player.seat === seat) return seat; // déjà à cette place : no-op
+    if (game.players.some((p) => p.seat === seat)) {
+      throw new GameManagerError("ILLEGAL_MOVE", `Le siège ${seat} est déjà occupé.`);
+    }
+    player.seat = seat;
+    return seat;
   }
 
   // ── Liste des parties publiques joignables ──
@@ -393,7 +454,15 @@ export class GameManager {
       result.push({
         roomCode: game.gameId,
         hostUsername: host.pseudo,
+        hostLevel: host.level,
         playerCount: game.players.length,
+        players: [...game.players]
+          .sort((a, b) => a.seat - b.seat)
+          .map((p) => ({ pseudo: p.pseudo, level: p.level })),
+        mode: game.config.mode,
+        khishtiPenalty: game.config.khishtiPenalty,
+        ranked: game.rankedRequested,
+        pairs: game.config.pairs === true,
         createdAt: game.createdAt,
       });
     }

@@ -14,8 +14,10 @@ import type {
   LobbyUpdatePayload,
   GameErrorPayload,
   SessionRestoredPayload,
+  GameCreatedPayload,
   PublicGameSummary,
   ActiveGamePayload,
+  CreateGamePayload,
 } from "@shared/events";
 import type { PlayerView } from "@shared/views";
 
@@ -32,6 +34,7 @@ type GameContextValue = {
   error: GameErrorPayload | null;
   notice: string | null; // message neutre (non-erreur), ex. session expirée
   isHost: boolean; // ai-je créé la partie (siège 0) ?
+  mySeat: number | null; // mon siège en salle d'attente (null hors partie)
   myPseudo: string;
   publicGames: PublicGameSummary[];
   // Verrou « partie en cours » : code de la partie démarrée qui m'attend, ou
@@ -39,8 +42,15 @@ type GameContextValue = {
   // interdits jusqu'à la fin de la partie.
   activeGameRoom: string | null;
 
-  createGame: (pseudo: string, visibility?: 'public' | 'private') => void;
+  // Options de room (visibilité, mode, mise, ranked) — cf. CreateGamePayload.
+  createGame: (pseudo: string, options?: Omit<CreateGamePayload, 'pseudo'>) => void;
   joinGame: (gameId: string, pseudo: string) => void;
+  chooseSeat: (seat: number) => void;
+  // (Re)rejoint la room lobby-browser et redemande la liste des parties
+  // publiques. À appeler à l'affichage de l'écran Play : le client quitte
+  // lobby-browser en créant/rejoignant une partie et n'y est pas réinscrit
+  // au retour, d'où l'absence de mises à jour temps réel sans ce rappel.
+  refreshPublicGames: () => void;
   startGame: () => void;
   startTestGame: (pseudo: string) => void;
   placeBid: (bid: number) => void;
@@ -67,6 +77,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<GameErrorPayload | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [isHost, setIsHost] = useState(false);
+  const [mySeat, setMySeat] = useState<number | null>(null);
   const [myPseudo, setMyPseudo] = useState("");
   const [publicGames, setPublicGames] = useState<PublicGameSummary[]>([]);
   const [activeGameRoom, setActiveGameRoom] = useState<string | null>(null);
@@ -87,7 +98,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
     // Manager (socket.io), pas par le Socket lui-même.
     const onReconnectAttempt = () => setConnectionStatus("reconnecting");
     const onReconnectFailed = () => setConnectionStatus("disconnected");
-    const onCreated = () => setIsHost(true); // seul le créateur reçoit gameCreated
+    const onCreated = (p: GameCreatedPayload) => {
+      setIsHost(true); // seul le créateur reçoit gameCreated
+      setMySeat(p.seat);
+    };
     const onLobby = (p: LobbyUpdatePayload) => setLobby(p);
     const onState = (v: PlayerView) => setView(v);
     const onError = (e: GameErrorPayload) => {
@@ -101,6 +115,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     // notre pseudo, le lobby/l'état de jeu suivent via leurs events propres.
     const onSessionRestored = ({ seat, pseudo }: SessionRestoredPayload) => {
       setIsHost(seat === 0);
+      setMySeat(seat);
       setMyPseudo(pseudo);
       // On (ré)intègre une partie : aucun verrou Home à afficher.
       setActiveGameRoom(null);
@@ -113,6 +128,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       setLobby(null);
       setView(null);
       setIsHost(false);
+      setMySeat(null);
       setActiveGameRoom(null);
       setNotice("Cette partie a expiré, recrée-en une.");
     };
@@ -157,11 +173,11 @@ export function GameProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const createGame = useCallback((pseudo: string, visibility: 'public' | 'private' = 'public') => {
+  const createGame = useCallback((pseudo: string, options: Omit<CreateGamePayload, 'pseudo'> = {}) => {
     setError(null);
     setNotice(null);
     setMyPseudo(pseudo);
-    socket.emit("createGame", { pseudo, visibility });
+    socket.emit("createGame", { pseudo, ...options });
   }, []);
 
   const joinGame = useCallback((gameId: string, pseudo: string) => {
@@ -169,6 +185,16 @@ export function GameProvider({ children }: { children: ReactNode }) {
     setNotice(null);
     setMyPseudo(pseudo);
     socket.emit("joinGame", { gameId, pseudo });
+  }, []);
+
+  const chooseSeat = useCallback((seat: number) => {
+    setError(null);
+    setNotice(null);
+    socket.emit("chooseSeat", { seat });
+  }, []);
+
+  const refreshPublicGames = useCallback(() => {
+    if (socket.connected) socket.emit("listGames");
   }, []);
 
   const startGame = useCallback(() => {
@@ -221,6 +247,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     setError(null);
     setNotice(null);
     setIsHost(false);
+    setMySeat(null);
     if (startedAndLive && lobby) {
       setActiveGameRoom(lobby.gameId); // Home verrouillé + Rejoindre
     } else {
@@ -245,11 +272,14 @@ export function GameProvider({ children }: { children: ReactNode }) {
       error,
       notice,
       isHost,
+      mySeat,
       myPseudo,
       publicGames,
       activeGameRoom,
       createGame,
       joinGame,
+      chooseSeat,
+      refreshPublicGames,
       startGame,
       startTestGame,
       placeBid,
@@ -260,7 +290,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       leaveGame,
       rejoin,
     }),
-    [connected, connectionStatus, lobby, view, error, notice, isHost, myPseudo, publicGames, activeGameRoom, createGame, joinGame, startGame, startTestGame, placeBid, playCard, chooseTrump, clearError, clearNotice, leaveGame, rejoin]
+    [connected, connectionStatus, lobby, view, error, notice, isHost, mySeat, myPseudo, publicGames, activeGameRoom, createGame, joinGame, chooseSeat, refreshPublicGames, startGame, startTestGame, placeBid, playCard, chooseTrump, clearError, clearNotice, leaveGame, rejoin]
   );
 
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>;
