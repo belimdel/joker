@@ -10,23 +10,27 @@ import {
 import { api, type PublicUser } from './api';
 import { renewIdentity } from './socket';
 
-type AuthView = 'login' | 'register' | 'verify' | null;
+type AuthView = 'login' | 'register' | 'verify' | 'forgot' | 'reset' | null;
 
 type AuthContextValue = {
   user: PublicUser | null;
   authLoading: boolean;       // vrai pendant le GET /me initial
   authError: string | null;
-  authView: AuthView;         // écran auth affiché ('login' | 'register' | 'verify' | null)
-  pendingEmail: string | null; // email en cours de vérification (écran 'verify')
+  authView: AuthView;         // écran auth affiché ('login' | 'register' | 'verify' | 'forgot' | 'reset' | null)
+  pendingEmail: string | null; // email en cours de vérification/réinitialisation
 
   showLogin: () => void;
   showRegister: () => void;
+  showForgotPassword: () => void;
   closeAuthView: () => void;
 
   login: (email: string, password: string) => Promise<boolean>;
   register: (email: string, username: string, password: string) => Promise<boolean>;
   verifyEmail: (code: string) => Promise<boolean>;
   resendCode: () => Promise<void>;
+  requestPasswordReset: (email: string) => Promise<void>;
+  resetPassword: (code: string, newPassword: string) => Promise<boolean>;
+  resendResetCode: () => Promise<void>;
   logout: () => Promise<void>;
   clearAuthError: () => void;
 };
@@ -110,6 +114,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await api.resendCode(pendingEmail);
   }, [pendingEmail]);
 
+  // Demande un code de réinitialisation (204 systématique) puis passe à
+  // l'écran de saisie du code + nouveau mot de passe.
+  const requestPasswordReset = useCallback(async (email: string): Promise<void> => {
+    setAuthError(null);
+    await api.forgotPassword(email);
+    setPendingEmail(email);
+    setAuthView('reset');
+  }, []);
+
+  // Réinitialise le mot de passe : succès → connecté (cookie posé serveur),
+  // toutes les anciennes sessions sont révoquées côté serveur.
+  const resetPassword = useCallback(async (code: string, newPassword: string): Promise<boolean> => {
+    if (!pendingEmail) return false;
+    setAuthError(null);
+    const res = await api.resetPassword(pendingEmail, code, newPassword);
+    if (res.ok) {
+      setUser(res.data.user);
+      setPendingEmail(null);
+      setAuthView(null);
+      renewIdentity();
+      return true;
+    }
+    setAuthError(res.error);
+    return false;
+  }, [pendingEmail]);
+
+  // Renvoie un code de réinitialisation (toujours 204, jamais d'erreur affichée).
+  const resendResetCode = useCallback(async (): Promise<void> => {
+    if (!pendingEmail) return;
+    await api.forgotPassword(pendingEmail);
+  }, [pendingEmail]);
+
   const logout = useCallback(async () => {
     await api.logout();
     setUser(null);
@@ -121,16 +157,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const showLogin = useCallback(() => { setAuthError(null); setAuthView('login'); }, []);
   const showRegister = useCallback(() => { setAuthError(null); setAuthView('register'); }, []);
+  const showForgotPassword = useCallback(() => { setAuthError(null); setAuthView('forgot'); }, []);
   const closeAuthView = useCallback(() => { setAuthError(null); setPendingEmail(null); setAuthView(null); }, []);
   const clearAuthError = useCallback(() => setAuthError(null), []);
 
   const value = useMemo<AuthContextValue>(
     () => ({
       user, authLoading, authError, authView, pendingEmail,
-      showLogin, showRegister, closeAuthView,
-      login, register, verifyEmail, resendCode, logout, clearAuthError,
+      showLogin, showRegister, showForgotPassword, closeAuthView,
+      login, register, verifyEmail, resendCode,
+      requestPasswordReset, resetPassword, resendResetCode,
+      logout, clearAuthError,
     }),
-    [user, authLoading, authError, authView, pendingEmail, showLogin, showRegister, closeAuthView, login, register, verifyEmail, resendCode, logout, clearAuthError]
+    [user, authLoading, authError, authView, pendingEmail, showLogin, showRegister, showForgotPassword, closeAuthView, login, register, verifyEmail, resendCode, requestPasswordReset, resetPassword, resendResetCode, logout, clearAuthError]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

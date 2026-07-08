@@ -2,16 +2,17 @@ import { useState } from 'react';
 import { useAuth } from '../AuthContext';
 import './screens.css';
 
-export function Login() {
-  const { login, authError, clearAuthError, showRegister, showForgotPassword, closeAuthView } = useAuth();
+export function ForgotPassword() {
+  const { requestPasswordReset, showLogin, closeAuthView, authError, clearAuthError } = useAuth();
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
-    await login(email.trim(), password);
+    // Réponse toujours 204 (anti-énumération) : on passe systématiquement à
+    // l'écran de saisie du code, sans révéler si le compte existe.
+    await requestPasswordReset(email.trim().toLowerCase());
     setLoading(false);
   }
 
@@ -23,7 +24,11 @@ export function Login() {
       </header>
 
       <div className="jk-panel jk-home__panel jk-fade-up">
-        <h2 className="jk-auth__title">Se connecter</h2>
+        <h2 className="jk-auth__title">Mot de passe oublié</h2>
+        <p className="jk-home__sub" style={{ marginTop: 0 }}>
+          Saisis ton email : si un compte existe, tu recevras un code à 6 chiffres
+          pour choisir un nouveau mot de passe.
+        </p>
 
         <form className="jk-form" onSubmit={handleSubmit}>
           <div>
@@ -38,43 +43,23 @@ export function Login() {
               required
             />
           </div>
-          <div>
-            <label className="jk-label">Mot de passe</label>
-            <input
-              className="jk-input"
-              type="password"
-              value={password}
-              onChange={(e) => { setPassword(e.target.value); clearAuthError(); }}
-              placeholder="••••••••"
-              autoComplete="current-password"
-              required
-            />
-          </div>
 
           {authError && <div className="jk-error">⚠ {authError}</div>}
 
           <button
             className="jk-btn jk-btn--primary jk-btn--block"
             type="submit"
-            disabled={loading || !email || !password}
+            disabled={loading || !email}
           >
-            {loading ? 'Connexion…' : 'Se connecter'}
+            {loading ? 'Envoi…' : 'Envoyer le code'}
           </button>
 
           <button
             className="jk-btn jk-btn--ghost jk-btn--block"
             type="button"
-            onClick={showForgotPassword}
+            onClick={showLogin}
           >
-            Mot de passe oublié ?
-          </button>
-
-          <button
-            className="jk-btn jk-btn--ghost jk-btn--block"
-            type="button"
-            onClick={showRegister}
-          >
-            Créer un compte
+            ← Retour à la connexion
           </button>
 
           <button
@@ -82,7 +67,7 @@ export function Login() {
             type="button"
             onClick={closeAuthView}
           >
-            Continuer en invité
+            Annuler
           </button>
         </form>
       </div>

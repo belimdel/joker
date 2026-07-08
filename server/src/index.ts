@@ -21,7 +21,7 @@ import type {
 import { authRouter } from "./auth/routes.js";
 import { statsRouter } from "./stats/routes.js";
 import { applySocketAuth } from "./auth/socketAuth.js";
-import { getUserById } from "./auth/sessions.js";
+import { getUserById, startAuthPruning } from "./auth/sessions.js";
 import { levelForXp } from "../../shared/progression.js";
 import { db } from "./db/client.js";
 import { saveGameResult } from "./persistence/gameResults.js";
@@ -68,6 +68,9 @@ applySocketAuth(io);
 // Routes REST sous /api
 app.use('/api/auth', authRouter);
 app.use('/api', statsRouter);
+
+// Purge périodique des sessions et codes expirés (boot + toutes les heures).
+startAuthPruning();
 
 // Le gestionnaire de parties vit pour toute la durée du process.
 const manager = new GameManager();
@@ -627,12 +630,22 @@ app.use(
     setHeaders: (res, filePath) => {
       const type = mime.getType(filePath);
       if (type) res.setHeader("Content-Type", type);
+      // index.html : JAMAIS en cache — sinon un navigateur (mobile surtout)
+      // garde l'ancien bundle après un déploiement et affiche une vieille UI.
+      // Les assets Vite sont hashés dans leur nom : cache long sans risque.
+      if (filePath.endsWith("index.html")) {
+        res.setHeader("Cache-Control", "no-cache");
+      } else if (filePath.includes(`${path.sep}assets${path.sep}`)) {
+        res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+      }
     },
   })
 );
 
 app.get(/.*/, (_req, res) => {
-  res.sendFile(path.join(clientDistPath, "index.html"));
+  res.sendFile(path.join(clientDistPath, "index.html"), {
+    headers: { "Cache-Control": "no-cache" },
+  });
 });
 
 const PORT = Number(process.env.PORT) || 3001;

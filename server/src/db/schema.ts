@@ -28,6 +28,18 @@ export const emailVerificationCodes = pgTable('email_verification_codes', {
   lastSentAt: timestamp('last_sent_at', { withTimezone: true }).notNull(),
 });
 
+// ─── password_reset_codes ────────────────────────────────────────
+// Réinitialisation de mot de passe (« mot de passe oublié »). Mêmes règles
+// que la vérification d'email : un seul code actif par utilisateur, SHA-256
+// uniquement (jamais le code en clair), expiration courte, tentatives comptées.
+export const passwordResetCodes = pgTable('password_reset_codes', {
+  userId:     uuid('user_id').primaryKey().references(() => users.id, { onDelete: 'cascade' }),
+  codeHash:   text('code_hash').notNull(),           // SHA-256 hex du code à 6 chiffres
+  expiresAt:  timestamp('expires_at', { withTimezone: true }).notNull(), // création + 15 min
+  attempts:   integer('attempts').notNull().default(0),
+  lastSentAt: timestamp('last_sent_at', { withTimezone: true }).notNull(),
+});
+
 // ─── sessions ────────────────────────────────────────────────────
 export const sessions = pgTable('sessions', {
   id:        uuid('id').primaryKey().defaultRandom(),

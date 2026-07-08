@@ -4,9 +4,12 @@ import { randomInt, createHash } from 'crypto';
 import { z } from 'zod';
 import rateLimit from 'express-rate-limit';
 import { db } from '../db/client.js';
-import { users, emailVerificationCodes } from '../db/schema.js';
+import { users, emailVerificationCodes, passwordResetCodes } from '../db/schema.js';
 import { hashPassword, verifyPassword } from './passwords.js';
-import { createSession, destroySession, getUserById, COOKIE_NAME } from './sessions.js';
+import {
+  createSession, destroySession, destroyAllUserSessions,
+  getUserById, resolveSession, COOKIE_NAME,
+} from './sessions.js';
 import { mailService } from '../mail/MailService.js';
 
 // ─── Schémas de validation ────────────────────────────────────────
@@ -28,6 +31,21 @@ const verifyEmailSchema = z.object({
 
 const resendSchema = z.object({
   email: z.string().email().transform(s => s.toLowerCase().trim()),
+});
+
+const forgotPasswordSchema = z.object({
+  email: z.string().email().transform(s => s.toLowerCase().trim()),
+});
+
+const resetPasswordSchema = z.object({
+  email:       z.string().email().transform(s => s.toLowerCase().trim()),
+  code:        z.string().regex(/^\d{6}$/),
+  newPassword: z.string().min(8),
+});
+
+const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1),
+  newPassword:     z.string().min(8),
 });
 
 // ─── Vérification d'email par code ───────────────────────────────
@@ -83,6 +101,39 @@ async function issueVerificationCode(
   });
 }
 
+// Miroir de issueVerificationCode pour la réinitialisation de mot de passe :
+// mêmes garanties (hash seul en BDD, un code actif par user, envoi asynchrone
+// qui ne bloque jamais la réponse HTTP et ne peut pas crasher le process).
+async function issuePasswordResetCode(
+  database: NonNullable<typeof db>,
+  userId: string,
+  email: string,
+): Promise<void> {
+  const code = generateCode();
+  const now = new Date();
+  await database
+    .insert(passwordResetCodes)
+    .values({
+      userId,
+      codeHash: hashCode(code),
+      expiresAt: new Date(now.getTime() + CODE_TTL_MS),
+      attempts: 0,
+      lastSentAt: now,
+    })
+    .onConflictDoUpdate({
+      target: passwordResetCodes.userId,
+      set: {
+        codeHash: hashCode(code),
+        expiresAt: new Date(now.getTime() + CODE_TTL_MS),
+        attempts: 0,
+        lastSentAt: now,
+      },
+    });
+  void mailService.sendPasswordResetCode(email, code).catch((e: unknown) => {
+    console.error(`✉️  Envoi du code de réinitialisation échoué pour ${email} :`, (e as Error).message);
+  });
+}
+
 // ─── Helpers ─────────────────────────────────────────────────────
 
 // Dérive le niveau depuis l'XP (formule §6, sans dépendre de shared/progression.ts).
@@ -119,6 +170,16 @@ const authLimiter = rateLimit({
 // Limiteur dédié au renvoi de code (anti-abus d'envoi de mails) : 5 requêtes
 // par IP toutes les 15 min. Répond 204 comme la route (pas de fuite d'info).
 const resendLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (_req, res) => res.status(204).send(),
+});
+
+// Limiteur « mot de passe oublié » : mêmes contraintes que resend (anti-abus
+// d'envoi de mails, réponse 204 systématique pour ne rien révéler).
+const forgotLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 5,
   standardHeaders: true,
@@ -264,6 +325,156 @@ authRouter.post('/resend-code', resendLimiter, async (req: Request, res: Respons
   respond();
 });
 
+// POST /api/auth/forgot-password — { email }
+// Répond TOUJOURS 204 (anti-énumération), que l'email existe ou non. Émet un
+// code de réinitialisation si le compte existe (vérifié ou non : le code
+// prouve la possession de l'email, exactement comme la vérification), avec
+// le même cooldown de 60 s entre deux envois.
+authRouter.post('/forgot-password', forgotLimiter, async (req: Request, res: Response) => {
+  const respond = () => res.status(204).send();
+  if (!db) { respond(); return; }
+
+  const parsed = forgotPasswordSchema.safeParse(req.body);
+  if (!parsed.success) { respond(); return; }
+  const { email } = parsed.data;
+
+  try {
+    const rows = await db
+      .select({ id: users.id })
+      .from(users).where(eq(users.email, email)).limit(1);
+    if (rows.length === 0) { respond(); return; }
+    const user = rows[0];
+
+    // Cooldown : ne pas renvoyer si un code a été émis il y a moins de 60 s.
+    const existing = await db
+      .select({ lastSentAt: passwordResetCodes.lastSentAt })
+      .from(passwordResetCodes).where(eq(passwordResetCodes.userId, user.id)).limit(1);
+    if (existing.length > 0 && Date.now() - existing[0].lastSentAt.getTime() < RESEND_COOLDOWN_MS) {
+      respond();
+      return;
+    }
+
+    await issuePasswordResetCode(db, user.id, email);
+  } catch (e) {
+    console.error('forgot-password error:', e);
+  }
+  respond();
+});
+
+// POST /api/auth/reset-password — { email, code, newPassword }
+// Mêmes règles que verify-email : message générique, expiration 15 min,
+// 5 tentatives max puis code invalidé. Succès → nouveau mot de passe,
+// compte marqué vérifié (possession de l'email prouvée), TOUTES les
+// sessions révoquées (tous appareils), puis connexion directe.
+authRouter.post('/reset-password', authLimiter, async (req: Request, res: Response) => {
+  if (!db) { res.status(503).json({ error: 'Service indisponible.' }); return; }
+
+  const parsed = resetPasswordSchema.safeParse(req.body);
+  const GENERIC = 'Code invalide ou expiré.';
+  if (!parsed.success) {
+    // Seule erreur distinguée : mot de passe trop court (aide légitime,
+    // ne révèle rien sur l'existence du compte ou la validité du code).
+    const pwIssue = parsed.error.issues.some(i => i.path[0] === 'newPassword');
+    res.status(400).json({ error: pwIssue ? 'Le mot de passe doit faire au moins 8 caractères.' : GENERIC });
+    return;
+  }
+  const { email, code, newPassword } = parsed.data;
+
+  try {
+    const rows = await db
+      .select({ id: users.id, username: users.username, xp: users.xp })
+      .from(users).where(eq(users.email, email)).limit(1);
+    if (rows.length === 0) { res.status(400).json({ error: GENERIC }); return; }
+    const user = rows[0];
+
+    const codeRows = await db
+      .select({ codeHash: passwordResetCodes.codeHash, expiresAt: passwordResetCodes.expiresAt, attempts: passwordResetCodes.attempts })
+      .from(passwordResetCodes).where(eq(passwordResetCodes.userId, user.id)).limit(1);
+    if (codeRows.length === 0) { res.status(400).json({ error: GENERIC }); return; }
+    const record = codeRows[0];
+
+    const expired = record.expiresAt < new Date();
+    const matches = record.codeHash === hashCode(code);
+
+    if (expired || !matches) {
+      const nextAttempts = record.attempts + 1;
+      if (nextAttempts >= MAX_CODE_ATTEMPTS || expired) {
+        await db.delete(passwordResetCodes).where(eq(passwordResetCodes.userId, user.id));
+      } else {
+        await db.update(passwordResetCodes)
+          .set({ attempts: nextAttempts })
+          .where(eq(passwordResetCodes.userId, user.id));
+      }
+      res.status(400).json({ error: GENERIC });
+      return;
+    }
+
+    // Succès : nouveau hash, compte vérifié (l'email est prouvé), codes
+    // consommés, toutes les sessions existantes révoquées.
+    const passwordHash = await hashPassword(newPassword);
+    await db.update(users).set({ passwordHash, emailVerified: true }).where(eq(users.id, user.id));
+    await db.delete(passwordResetCodes).where(eq(passwordResetCodes.userId, user.id));
+    await db.delete(emailVerificationCodes).where(eq(emailVerificationCodes.userId, user.id));
+    await destroyAllUserSessions(user.id);
+
+    const token = await createSession(user.id);
+    res.cookie(COOKIE_NAME, token, cookieOptions(req));
+    res.status(200).json({ user: toPublicUser(user) });
+  } catch (e) {
+    console.error('reset-password error:', e);
+    res.status(500).json({ error: 'Erreur interne, réessaie.' });
+  }
+});
+
+// POST /api/auth/change-password — { currentPassword, newPassword }
+// Authentifié (cookie de session). Vérifie le mot de passe actuel, pose le
+// nouveau, révoque TOUTES les sessions (tous appareils) puis en recrée une
+// pour cet appareil : l'utilisateur reste connecté ici, déconnecté partout
+// ailleurs.
+authRouter.post('/change-password', authLimiter, async (req: Request, res: Response) => {
+  if (!db) { res.status(503).json({ error: 'Service indisponible.' }); return; }
+
+  const token = req.cookies?.[COOKIE_NAME];
+  if (!token) { res.status(401).json({ error: 'Non authentifié.' }); return; }
+  const userId = await resolveSession(token);
+  if (!userId) {
+    res.clearCookie(COOKIE_NAME, { path: '/' });
+    res.status(401).json({ error: 'Session expirée.' });
+    return;
+  }
+
+  const parsed = changePasswordSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Le nouveau mot de passe doit faire au moins 8 caractères.' });
+    return;
+  }
+  const { currentPassword, newPassword } = parsed.data;
+
+  try {
+    const rows = await db
+      .select({ id: users.id, username: users.username, xp: users.xp, passwordHash: users.passwordHash })
+      .from(users).where(eq(users.id, userId)).limit(1);
+    if (rows.length === 0) { res.status(401).json({ error: 'Utilisateur introuvable.' }); return; }
+    const user = rows[0];
+
+    const ok = await verifyPassword(user.passwordHash, currentPassword);
+    if (!ok) { res.status(400).json({ error: 'Mot de passe actuel incorrect.' }); return; }
+
+    const passwordHash = await hashPassword(newPassword);
+    await db.update(users).set({ passwordHash }).where(eq(users.id, user.id));
+    // Un éventuel code de réinitialisation en attente devient caduc.
+    await db.delete(passwordResetCodes).where(eq(passwordResetCodes.userId, user.id));
+    await destroyAllUserSessions(user.id);
+
+    const newToken = await createSession(user.id);
+    res.cookie(COOKIE_NAME, newToken, cookieOptions(req));
+    res.status(200).json({ user: toPublicUser(user) });
+  } catch (e) {
+    console.error('change-password error:', e);
+    res.status(500).json({ error: 'Erreur interne, réessaie.' });
+  }
+});
+
 // POST /api/auth/login
 authRouter.post('/login', authLimiter, async (req: Request, res: Response) => {
   if (!db) { res.status(503).json({ error: 'Service indisponible.' }); return; }
@@ -317,7 +528,6 @@ authRouter.get('/me', async (req: Request, res: Response) => {
   const token = req.cookies?.[COOKIE_NAME];
   if (!token) { res.status(401).json({ error: 'Non authentifié.' }); return; }
 
-  const { resolveSession } = await import('./sessions.js');
   const userId = await resolveSession(token);
   if (!userId) {
     res.clearCookie(COOKIE_NAME, { path: '/' });

@@ -7,6 +7,8 @@ import { ComingSoon } from "./screens/ComingSoon";
 import { Login } from "./screens/Login";
 import { Register } from "./screens/Register";
 import { VerifyEmail } from "./screens/VerifyEmail";
+import { ForgotPassword } from "./screens/ForgotPassword";
+import { ResetPassword } from "./screens/ResetPassword";
 import { Lobby } from "./screens/Lobby";
 import { Board } from "./screens/Board";
 import { Profile } from "./screens/Profile";
@@ -30,6 +32,8 @@ function Screen() {
   if (authView === "login") return <Login />;
   if (authView === "register") return <Register />;
   if (authView === "verify") return <VerifyEmail />;
+  if (authView === "forgot") return <ForgotPassword />;
+  if (authView === "reset") return <ResetPassword />;
 
   const openProfile = (username: string) => {
     setProfileUsername(username);

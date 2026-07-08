@@ -1,7 +1,7 @@
 import { randomBytes, createHash } from 'crypto';
 import { eq, lt } from 'drizzle-orm';
 import { db } from '../db/client.js';
-import { sessions, users } from '../db/schema.js';
+import { sessions, users, emailVerificationCodes, passwordResetCodes } from '../db/schema.js';
 
 const SESSION_DURATION_MS = 30 * 24 * 60 * 60 * 1000; // 30 jours
 export const COOKIE_NAME = 'jk_session';
@@ -45,6 +45,14 @@ export async function destroySession(rawToken: string): Promise<void> {
   await db.delete(sessions).where(eq(sessions.tokenHash, tokenHash));
 }
 
+// Révoque TOUTES les sessions d'un utilisateur (tous appareils). Appelé à
+// chaque changement de mot de passe (reset ou modification volontaire) : un
+// mot de passe compromis ne doit laisser aucune session active derrière lui.
+export async function destroyAllUserSessions(userId: string): Promise<void> {
+  if (!db) return;
+  await db.delete(sessions).where(eq(sessions.userId, userId));
+}
+
 // Récupère un utilisateur depuis son id (pour /me et les middlewares).
 export async function getUserById(userId: string) {
   if (!db) return null;
@@ -60,4 +68,29 @@ export async function getUserById(userId: string) {
 export async function pruneExpiredSessions(): Promise<void> {
   if (!db) return;
   await db.delete(sessions).where(lt(sessions.expiresAt, new Date()));
+}
+
+// ─── Purge périodique des artefacts d'auth expirés ────────────────
+// Sessions, codes de vérification et codes de réinitialisation expirés
+// n'ont plus aucune valeur : on les supprime pour que la BDD ne reflète
+// que des états réellement actifs. Lancée au boot puis toutes les heures.
+const PRUNE_INTERVAL_MS = 60 * 60 * 1000;
+
+export async function pruneExpiredAuthRecords(): Promise<void> {
+  if (!db) return;
+  const now = new Date();
+  await db.delete(sessions).where(lt(sessions.expiresAt, now));
+  await db.delete(emailVerificationCodes).where(lt(emailVerificationCodes.expiresAt, now));
+  await db.delete(passwordResetCodes).where(lt(passwordResetCodes.expiresAt, now));
+}
+
+export function startAuthPruning(): void {
+  if (!db) return; // mode dégradé sans BDD : rien à purger
+  const run = () =>
+    pruneExpiredAuthRecords().catch((e: unknown) => {
+      console.error('🧹 Purge auth échouée :', (e as Error).message);
+    });
+  void run();
+  // unref() : le timer ne retient pas le process (tests, arrêt propre).
+  setInterval(run, PRUNE_INTERVAL_MS).unref();
 }

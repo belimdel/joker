@@ -15,6 +15,13 @@
       "when": 1783334247848,
       "tag": "0001_sturdy_king_cobra",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1783512446607,
+      "tag": "0002_petite_lorna_dane",
+      "breakpoints": true
     }
   ]
 }

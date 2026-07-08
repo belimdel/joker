@@ -9,6 +9,8 @@ import { resolve4 } from 'dns/promises';
 export interface MailService {
   // Envoie le code de vérification à 6 chiffres à l'adresse donnée.
   sendVerificationCode(to: string, code: string): Promise<void>;
+  // Envoie le code de réinitialisation de mot de passe à 6 chiffres.
+  sendPasswordResetCode(to: string, code: string): Promise<void>;
 }
 
 // Corps du mail : sujet clair, code en gros, mention de l'expiration 15 min.
@@ -22,6 +24,21 @@ function verificationEmail(code: string): { subject: string; text: string } {
       `Saisissez-le dans l'application pour activer votre compte.\n` +
       `Ce code expire dans 15 minutes.\n\n` +
       `Si vous n'êtes pas à l'origine de cette demande, ignorez cet email.`,
+  };
+}
+
+// Mail « mot de passe oublié » : même format, consigne de sécurité explicite.
+function passwordResetEmail(code: string): { subject: string; text: string } {
+  return {
+    subject: 'Joker — réinitialisation de votre mot de passe',
+    text:
+      `Une réinitialisation de mot de passe a été demandée pour votre compte Joker.\n\n` +
+      `Votre code de réinitialisation est :\n\n` +
+      `    ${code}\n\n` +
+      `Saisissez-le dans l'application pour choisir un nouveau mot de passe.\n` +
+      `Ce code expire dans 15 minutes.\n\n` +
+      `Si vous n'êtes pas à l'origine de cette demande, ignorez cet email :\n` +
+      `votre mot de passe actuel reste inchangé.`,
   };
 }
 
@@ -72,11 +89,21 @@ class SmtpMailService implements MailService {
     });
   }
 
-  async sendVerificationCode(to: string, code: string): Promise<void> {
-    const { subject, text } = verificationEmail(code);
+  // Envoi générique : résolution IPv4 + transport éphémère (volume faible).
+  private async send(to: string, subject: string, text: string): Promise<void> {
     const host = await this.resolveIpv4Host();
     const transporter = this.buildTransporter(host);
     await transporter.sendMail({ from: this.user, to, subject, text });
+  }
+
+  async sendVerificationCode(to: string, code: string): Promise<void> {
+    const { subject, text } = verificationEmail(code);
+    await this.send(to, subject, text);
+  }
+
+  async sendPasswordResetCode(to: string, code: string): Promise<void> {
+    const { subject, text } = passwordResetEmail(code);
+    await this.send(to, subject, text);
   }
 }
 
@@ -86,6 +113,10 @@ class ConsoleMailService implements MailService {
     // Seul endroit où un code peut apparaître en clair dans les logs : mode
     // dégradé explicite, jamais en production avec SMTP configuré.
     console.log(`[MAIL] code de vérification pour ${to} : ${code}`);
+  }
+
+  async sendPasswordResetCode(to: string, code: string): Promise<void> {
+    console.log(`[MAIL] code de réinitialisation pour ${to} : ${code}`);
   }
 }
 

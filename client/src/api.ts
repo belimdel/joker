@@ -109,6 +109,28 @@ export const api = {
       body: JSON.stringify({ email }),
     }),
 
+  // Demande un code de réinitialisation (204 systématique, anti-énumération).
+  forgotPassword: (email: string) =>
+    apiFetch<void>('/api/auth/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    }),
+
+  // Réinitialise le mot de passe avec le code reçu → connecte l'utilisateur.
+  resetPassword: (email: string, code: string, newPassword: string) =>
+    apiFetch<{ user: PublicUser }>('/api/auth/reset-password', {
+      method: 'POST',
+      body: JSON.stringify({ email, code, newPassword }),
+    }),
+
+  // Change le mot de passe (connecté). Révoque les sessions des autres
+  // appareils ; celle-ci est renouvelée (nouveau cookie posé par le serveur).
+  changePassword: (currentPassword: string, newPassword: string) =>
+    apiFetch<{ user: PublicUser }>('/api/auth/change-password', {
+      method: 'POST',
+      body: JSON.stringify({ currentPassword, newPassword }),
+    }),
+
   logout: () =>
     apiFetch<void>('/api/auth/logout', { method: 'POST' }),
 
