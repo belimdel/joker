@@ -14,9 +14,12 @@ const URL = import.meta.env.PROD
   : "http://localhost:3001";
 
 // ─── Identifiant de session persistant ──────────────────────────
-// Généré une seule fois par navigateur et conservé dans localStorage.
-// Permet au serveur de reconnaître un client qui rafraîchit sa page
-// et de le remettre dans sa partie (cf. GameManager.reconnect).
+// Généré par navigateur et conservé dans localStorage. Permet au serveur
+// de reconnaître un client qui rafraîchit sa page et de le remettre dans
+// sa partie (cf. GameManager.reconnect). Il identifie le NAVIGATEUR, pas
+// la personne : à chaque changement d'identité (login, création de compte,
+// logout) il est régénéré via renewIdentity() pour ne pas hériter de la
+// partie de l'ancienne identité.
 const SESSION_STORAGE_KEY = "joker:sessionId";
 
 function getOrCreateSessionId(): string {
@@ -27,13 +30,20 @@ function getOrCreateSessionId(): string {
   return id;
 }
 
-// Purge la session locale (ex. sessionExpired) : le prochain connect()
-// en fabriquera une nouvelle via getOrCreateSessionId.
-export function clearSessionId(): void {
-  localStorage.removeItem(SESSION_STORAGE_KEY);
-}
-
 export const socket: AppSocket = io(URL, {
   autoConnect: true,
-  auth: { sessionId: getOrCreateSessionId() },
+  // Callback (et non objet figé) : chaque (re)connexion relit le sessionId
+  // COURANT dans localStorage — indispensable après renewIdentity().
+  auth: (cb) => cb({ sessionId: getOrCreateSessionId() }),
 });
+
+// Changement d'identité (login, compte créé, logout) : l'éventuelle partie
+// en cours appartenait à l'ANCIENNE identité, et rien ne garantit que c'est
+// la même personne derrière l'écran (appareil partagé). On oublie le
+// sessionId local et on force une reconnexion : nouveau sessionId + relecture
+// du cookie jk_session par le serveur (socket.data.userId à jour).
+export function renewIdentity(): void {
+  localStorage.removeItem(SESSION_STORAGE_KEY);
+  socket.disconnect();
+  socket.connect();
+}

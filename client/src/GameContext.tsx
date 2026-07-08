@@ -4,10 +4,11 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
-import { socket, clearSessionId } from "./socket";
+import { socket } from "./socket";
 import type { Card, Suit } from "@shared/cards";
 import type { JokerAnnounce } from "@shared/trick";
 import type {
@@ -52,7 +53,8 @@ type GameContextValue = {
   // au retour, d'où l'absence de mises à jour temps réel sans ce rappel.
   refreshPublicGames: () => void;
   startGame: () => void;
-  startTestGame: (pseudo: string) => void;
+  // pairs=true → partie solo 2 contre 2 (mon équipier bot en face).
+  startTestGame: (pseudo: string, pairs?: boolean) => void;
   placeBid: (bid: number) => void;
   playCard: (card: Card, announce?: JokerAnnounce, declaredSuit?: Suit | null) => void;
   chooseTrump: (suit: Suit | null) => void;
@@ -81,6 +83,11 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const [myPseudo, setMyPseudo] = useState("");
   const [publicGames, setPublicGames] = useState<PublicGameSummary[]>([]);
   const [activeGameRoom, setActiveGameRoom] = useState<string | null>(null);
+  // A-t-on eu une partie (room/plateau) dans CE contexte de page ? Sert à ne
+  // montrer « partie expirée » que s'il y avait vraiment quelque chose à
+  // perdre : sessionExpired est aussi émis pour une session toute neuve
+  // (première visite, changement d'identité via renewIdentity).
+  const hadGameRef = useRef(false);
 
   // Abonnement UNIQUE aux événements serveur (nettoyé au démontage).
   useEffect(() => {
@@ -99,11 +106,18 @@ export function GameProvider({ children }: { children: ReactNode }) {
     const onReconnectAttempt = () => setConnectionStatus("reconnecting");
     const onReconnectFailed = () => setConnectionStatus("disconnected");
     const onCreated = (p: GameCreatedPayload) => {
+      hadGameRef.current = true;
       setIsHost(true); // seul le créateur reçoit gameCreated
       setMySeat(p.seat);
     };
-    const onLobby = (p: LobbyUpdatePayload) => setLobby(p);
-    const onState = (v: PlayerView) => setView(v);
+    const onLobby = (p: LobbyUpdatePayload) => {
+      hadGameRef.current = true;
+      setLobby(p);
+    };
+    const onState = (v: PlayerView) => {
+      hadGameRef.current = true;
+      setView(v);
+    };
     const onError = (e: GameErrorPayload) => {
       setError(e);
       // Verrou « partie en cours » : mémoriser le code pour le bandeau Home.
@@ -114,23 +128,28 @@ export function GameProvider({ children }: { children: ReactNode }) {
     // Reconnexion silencieuse après refresh : on retrouve notre siège et
     // notre pseudo, le lobby/l'état de jeu suivent via leurs events propres.
     const onSessionRestored = ({ seat, pseudo }: SessionRestoredPayload) => {
+      hadGameRef.current = true;
       setIsHost(seat === 0);
       setMySeat(seat);
       setMyPseudo(pseudo);
       // On (ré)intègre une partie : aucun verrou Home à afficher.
       setActiveGameRoom(null);
     };
-    // Session orpheline (ex. redémarrage serveur) : la partie n'existe plus
-    // côté serveur. On purge la session locale et on revient à l'accueil
-    // avec un message sobre (réaffiché via le bandeau d'erreur de Home).
+    // Session sans partie côté serveur (redémarrage serveur, changement
+    // d'identité, première visite) : on remet l'écran à zéro. Le message
+    // « partie expirée » n'est montré que si on avait vraiment une partie
+    // dans ce contexte de page. On NE purge PAS le sessionId local : il
+    // reste valable pour la suite (le supprimer ferait diverger le
+    // localStorage du handshake déjà établi et casserait la reconnexion).
     const onSessionExpired = () => {
-      clearSessionId();
+      const hadGame = hadGameRef.current;
+      hadGameRef.current = false;
       setLobby(null);
       setView(null);
       setIsHost(false);
       setMySeat(null);
       setActiveGameRoom(null);
-      setNotice("Cette partie a expiré, recrée-en une.");
+      if (hadGame) setNotice("Cette partie a expiré, recrée-en une.");
     };
     const onPublicGames = ({ games }: { games: PublicGameSummary[] }) => {
       setPublicGames(games);
@@ -203,11 +222,11 @@ export function GameProvider({ children }: { children: ReactNode }) {
     socket.emit("startGame");
   }, []);
 
-  const startTestGame = useCallback((pseudo: string) => {
+  const startTestGame = useCallback((pseudo: string, pairs?: boolean) => {
     setError(null);
     setNotice(null);
     setMyPseudo(pseudo);
-    socket.emit("startTestGame", { pseudo });
+    socket.emit("startTestGame", { pseudo, pairs });
   }, []);
 
   const placeBid = useCallback((bid: number) => {
@@ -235,13 +254,13 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const clearNotice = useCallback(() => setNotice(null), []);
 
   // Quitter la partie via l'événement explicite leaveGame. Le serveur fait
-  // autorité : en lobby (ou partie terminée) il libère le siège ; en partie
-  // démarrée il garde le siège (le bot joue) et pose le verrou « partie en
-  // cours ». Côté client on nettoie l'écran, et on ne garde le sessionId de
-  // partie (clé du retour) QUE si la partie était démarrée et non terminée.
+  // autorité : en lobby (ou partie terminée) il libère le siège (et désindexe
+  // notre session — rien à purger côté client) ; en partie démarrée il garde
+  // le siège (le bot joue) et pose le verrou « partie en cours ».
   const leaveGame = useCallback(() => {
     const startedAndLive = view != null && view.gamePhase !== "finished";
     socket.emit("leaveGame");
+    hadGameRef.current = false;
     setLobby(null);
     setView(null);
     setError(null);
@@ -251,7 +270,6 @@ export function GameProvider({ children }: { children: ReactNode }) {
     if (startedAndLive && lobby) {
       setActiveGameRoom(lobby.gameId); // Home verrouillé + Rejoindre
     } else {
-      clearSessionId(); // partie oubliée : on repart d'une session propre
       setActiveGameRoom(null);
     }
   }, [view, lobby]);

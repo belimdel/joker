@@ -269,7 +269,7 @@ io.on("connection", (socket) => {
   // en grace period, on le raccroche à sa partie/son siège et on lui
   // réémet son état, sans rien diffuser aux autres joueurs.
   const sessionId = sessionIdOf(socket);
-  const reconnected = manager.reconnect(sessionId, socket.id);
+  const reconnected = manager.reconnect(sessionId, socket.id, socket.data.userId ?? null);
   if (reconnected) {
     const { game, seat, pseudo } = reconnected;
     const player = game.players.find((p) => p.seat === seat);
@@ -296,11 +296,21 @@ io.on("connection", (socket) => {
     }
   } else if (hasClientSessionId(socket)) {
     // Le client a fourni un sessionId, mais il ne correspond à aucune
-    // partie connue (ex. redémarrage serveur) : on prévient le client
-    // qu'il doit purger sa session et revenir à l'accueil. Un nouveau
+    // partie connue (ex. redémarrage serveur, changement d'identité) : on
+    // prévient le client qu'il doit revenir à l'accueil. Un nouveau
     // joueur sans sessionId ne déclenche jamais ce cas.
     socket.emit("sessionExpired");
     console.log(`⚠️ Session orpheline ignorée : ${sessionId}`);
+  }
+
+  // Rappel du verrou « partie en cours » par identité de COMPTE : un compte
+  // qui se (re)connecte avec une session toute neuve (re-login, autre
+  // appareil) retrouve le bandeau Rejoindre de sa partie démarrée. Les
+  // invités, eux, ne sont reconnaissables que par sessionId (déjà couvert
+  // par reconnect ci-dessus).
+  if (!reconnected) {
+    const active = manager.activeGameFor(socket.data.userId ?? null, sessionId);
+    if (active) socket.emit("activeGameUpdate", { roomCode: active.gameId });
   }
 
   socket.emit("welcome", { message: "Connecté au serveur Joker !" });
@@ -430,7 +440,10 @@ io.on("connection", (socket) => {
   });
 
   // ── Partie solo de test (1 humain + 3 bots, démarrage immédiat) ──
-  socket.on("startTestGame", async ({ pseudo }) => {
+  // pairs=true → solo 2 contre 2 : moi + le bot du siège 2 (en face)
+  // contre les bots des sièges 1 et 3. Même moteur, config validée par
+  // sanitizeRoomOptions comme pour une room normale.
+  socket.on("startTestGame", async ({ pseudo, pairs }) => {
     const userId = socket.data.userId ?? null;
     // Verrou : pas de partie solo tant qu'une partie démarrée est en cours.
     const active = manager.activeGameFor(userId, sessionId);
@@ -446,7 +459,7 @@ io.on("connection", (socket) => {
       socket.emit("gameError", { code: "INVALID_PAYLOAD", message: "Pseudo manquant." });
       return;
     }
-    const game = manager.createGame(name, socket.id, sessionId, userId, { visibility: 'private' }, level);
+    const game = manager.createGame(name, socket.id, sessionId, userId, { visibility: 'private', pairs }, level);
     manager.addBotPlayers(game);
     socket.leave('lobby-browser');
     socket.join(game.gameId);
@@ -492,7 +505,7 @@ io.on("connection", (socket) => {
 
   // ── Revenir dans une partie démarrée qu'on avait quittée (Rejoindre) ──
   socket.on("resumeGame", () => {
-    const resumed = manager.resumeBySession(sessionId, socket.id);
+    const resumed = manager.resumeBySession(sessionId, socket.id, socket.data.userId ?? null);
     if (!resumed) {
       // Plus de partie à rejoindre (terminée/détruite) : lever le verrou.
       socket.emit("activeGameUpdate", { roomCode: null });

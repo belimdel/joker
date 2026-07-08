@@ -286,23 +286,55 @@ export class GameManager {
 
   // ── Retour dans une partie démarrée qu'on avait quittée (bouton Rejoindre) ──
   // Comme reconnect(), mais efface leftAt : le joueur RÉINTÈGRE l'interface.
-  resumeBySession(sessionId: string, newSocketId: string): ReconnectResult | null {
+  // L'identité (userId ?? sessionId) doit correspondre au siège : un même
+  // navigateur qui a changé de compte (login/logout) n'est PLUS la même
+  // personne. Un compte authentifié retrouve aussi sa partie par userId,
+  // même avec un sessionId tout neuf (re-login, autre appareil).
+  resumeBySession(
+    sessionId: string,
+    newSocketId: string,
+    userId: string | null = null,
+  ): ReconnectResult | null {
+    const identity = userId ?? sessionId;
     const gameId = this.sessionToGame.get(sessionId);
-    if (!gameId) return null;
-    const game = this.games.get(gameId);
-    const player = game?.players.find((p) => p.sessionId === sessionId);
-    if (!game || !player) {
-      this.sessionToGame.delete(sessionId);
-      return null;
+    if (gameId) {
+      const game = this.games.get(gameId);
+      const player = game?.players.find((p) => p.sessionId === sessionId);
+      if (!game || !player) {
+        this.sessionToGame.delete(sessionId);
+      } else if ((player.userId ?? player.sessionId) === identity) {
+        return this.rebindSeat(game, player, sessionId, newSocketId);
+      }
+      // Identité différente : ce mapping appartient à l'ancienne identité du
+      // navigateur, on l'ignore et on tente la reprise par compte.
     }
-    const timer = this.disconnectTimers.get(sessionId);
+    if (!userId) return null;
+    const game = this.activeGameFor(userId, sessionId);
+    const player = game?.players.find((p) => !p.isBot && p.userId === userId);
+    if (!game || !player) return null;
+    return this.rebindSeat(game, player, sessionId, newSocketId);
+  }
+
+  // Raccroche un siège à un nouveau socket (et sessionId si changé) :
+  // annule la suppression différée, réindexe les maps, efface leftAt.
+  private rebindSeat(
+    game: NetworkGame,
+    player: NetworkPlayer,
+    sessionId: string,
+    newSocketId: string,
+  ): ReconnectResult {
+    const timer = this.disconnectTimers.get(player.sessionId);
     if (timer) {
       clearTimeout(timer);
-      this.disconnectTimers.delete(sessionId);
+      this.disconnectTimers.delete(player.sessionId);
     }
+    if (player.sessionId !== sessionId) this.sessionToGame.delete(player.sessionId);
+    this.socketToGame.delete(player.socketId);
     player.leftAt = null;
     player.socketId = newSocketId;
-    this.socketToGame.set(newSocketId, gameId);
+    player.sessionId = sessionId;
+    this.socketToGame.set(newSocketId, game.gameId);
+    this.sessionToGame.set(sessionId, game.gameId);
     return { game, seat: player.seat, pseudo: player.pseudo };
   }
 
@@ -362,7 +394,11 @@ export class GameManager {
   // sa suppression différée, et raccroche son siège au nouveau socket.
   // Retourne `null` si la session ne correspond à aucune partie active
   // (partie déjà supprimée, grace period déjà écoulée, session inconnue...).
-  reconnect(sessionId: string, newSocketId: string): ReconnectResult | null {
+  reconnect(
+    sessionId: string,
+    newSocketId: string,
+    userId: string | null = null,
+  ): ReconnectResult | null {
     const gameId = this.sessionToGame.get(sessionId);
     if (!gameId) return null;
 
@@ -372,6 +408,13 @@ export class GameManager {
       this.sessionToGame.delete(sessionId);
       return null;
     }
+
+    // Identité stricte : le siège appartient à (userId ?? sessionId). Si ce
+    // navigateur a changé de compte entre-temps (login/logout), ce n'est plus
+    // forcément la même personne — pas de restauration, le siège suit la
+    // grace period normale. Le vrai propriétaire (compte) reviendra via
+    // resumeBySession/joinGame, rattachés par userId.
+    if ((player.userId ?? player.sessionId) !== (userId ?? sessionId)) return null;
 
     const timer = this.disconnectTimers.get(sessionId);
     if (timer) {

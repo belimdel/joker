@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from 'react';
 import { api, type PublicUser } from './api';
+import { renewIdentity } from './socket';
 
 type AuthView = 'login' | 'register' | 'verify' | null;
 
@@ -53,6 +54,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (res.ok) {
       setUser(res.data.user);
       setAuthView(null);
+      // Nouvelle identité : on oublie la session de partie de l'ancienne
+      // (invité ou autre compte) et on reconnecte le socket avec le cookie.
+      renewIdentity();
       return true;
     }
     // Compte non vérifié → basculer sur l'écran de vérification (email pré-rempli).
@@ -91,6 +95,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(res.data.user);
       setPendingEmail(null);
       setAuthView(null);
+      // Compte créé et connecté : l'identité invité de ce navigateur est
+      // oubliée (session de partie comprise).
+      renewIdentity();
       return true;
     }
     setAuthError(res.error);
@@ -107,6 +114,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await api.logout();
     setUser(null);
     setAuthView(null);
+    // Le compte est parti : la session de partie lui appartenait, on ne la
+    // transmet pas au prochain utilisateur de l'appareil (invité ou autre).
+    renewIdentity();
   }, []);
 
   const showLogin = useCallback(() => { setAuthError(null); setAuthView('login'); }, []);

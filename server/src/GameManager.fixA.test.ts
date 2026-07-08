@@ -3,7 +3,10 @@
 //  • joinGame RATTACHE au lieu de dupliquer un siège pour la même identité ;
 //  • activeGameFor détecte le verrou (partie démarrée non terminée) ;
 //  • leaveGame libère (lobby) ou garde le siège (partie démarrée) ;
-//  • resumeBySession fait revenir un joueur parti.
+//  • resumeBySession fait revenir un joueur parti ;
+//  • identité STRICTE : un siège de compte ne se reprend/reconnecte qu'avec
+//    le bon userId (un navigateur seul ne prouve pas l'identité), et un
+//    compte retrouve sa partie même avec un sessionId tout neuf.
 import { GameManager, GameManagerError } from "./GameManager";
 import { check, expectThrow } from "../../shared/test-utils";
 
@@ -91,12 +94,35 @@ check("keepsSeat=true en partie démarrée", r6.keepsSeat, true);
 check("Le siège reste occupé (4 joueurs)", m6.getGame(g6.gameId)!.players.length, 4);
 check("Le joueur parti est marqué leftAt", m6.getGame(g6.gameId)!.players.find(p => p.seat === 1)!.leftAt !== null, true);
 check("Verrou toujours actif après avoir quitté", m6.activeGameFor("user-b6", "sess-b6")?.gameId, g6.gameId);
-// Retour via resumeBySession.
-const resumed = m6.resumeBySession("sess-b6", "b6-new");
+// Retour via resumeBySession : le siège appartient au COMPTE user-b6, il
+// faut donc fournir le bon userId (identité stricte).
+const resumed = m6.resumeBySession("sess-b6", "b6-new", "user-b6");
 check("resumeBySession retrouve la partie", resumed?.game.gameId, g6.gameId);
 check("resumeBySession retrouve le siège", resumed?.seat, 1);
 check("leftAt effacé au retour", m6.getGame(g6.gameId)!.players.find(p => p.seat === 1)!.leftAt, null);
 check("Socket re-mappé après retour", m6.getGameBySocket("b6-new")?.gameId, g6.gameId);
+
+// ── Identité stricte : reprise/reconnexion d'un siège de compte ──
+console.log("\n══════ Identité stricte : compte requis pour reprendre le siège ══════");
+// Le même navigateur (sess-b6) SANS le compte (logout) ne reprend pas le siège.
+check("resumeBySession refusé sans le compte (invité)", m6.resumeBySession("sess-b6", "b6-x"), null);
+// Ni avec un AUTRE compte connecté sur ce navigateur.
+check("resumeBySession refusé avec un autre compte", m6.resumeBySession("sess-b6", "b6-y", "user-intrus")?.game.gameId, undefined);
+// En revanche le compte retrouve sa partie avec un sessionId TOUT NEUF
+// (re-login, autre appareil) : reprise par userId.
+m6.leaveGame("b6-new"); // reparti (leftAt posé)
+const resumed2 = m6.resumeBySession("sess-b6-fresh", "b6-fresh", "user-b6");
+check("Reprise par compte avec session neuve", resumed2?.game.gameId, g6.gameId);
+check("Reprise par compte : bon siège", resumed2?.seat, 1);
+check("Le nouveau socket est mappé", m6.getGameBySocket("b6-fresh")?.gameId, g6.gameId);
+// reconnect (reconnexion silencieuse) applique la même règle : le siège du
+// compte user-d6 n'est pas restauré pour un invité ou un autre compte.
+m6.handleDisconnect("d6", () => {});
+check("reconnect refusé sans le compte", m6.reconnect("sess-d6", "d6-x"), null);
+check("reconnect refusé avec un autre compte", m6.reconnect("sess-d6", "d6-y", "user-intrus"), null);
+const reco6 = m6.reconnect("sess-d6", "d6-new", "user-d6");
+check("reconnect OK avec le bon compte", reco6?.game.gameId, g6.gameId);
+check("reconnect OK : bon siège", reco6?.seat, 3);
 
 // ── Rejoindre sa PROPRE partie démarrée par joinGame = rattachement ──
 console.log("\n══════ joinGame : rattachement autorisé sur partie démarrée ══════");
