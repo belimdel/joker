@@ -50,6 +50,10 @@ export function ScoreTable({
   // (sièges 0+2 vs 1+3). À la fin, on reste individuel (placements) — donc ce
   // drapeau ne s'applique qu'au bloc !finished.
   const pairs = view.config.pairs === true;
+  // Ordre des COLONNES : en 2v2, les partenaires (sièges 0+2 vs 1+3,
+  // assis en face) sont regroupés côte à côte — ainsi la ligne de total
+  // d'équipe (colSpan 2) recouvre exactement les colonnes de l'équipe.
+  const seatOrder = pairs ? [0, 2, 1, 3] : SEATS;
   const setEnds = lastDealOfSet(view.schedule);
   const finalSetNumber = setEnds.length;
   // Positions finales (1er/2e…) affichées sous chaque colonne en fin de partie.
@@ -79,7 +83,7 @@ export function ScoreTable({
         <thead>
           <tr>
             <th className="jk-scoretable__rowlabel" scope="col" />
-            {SEATS.map((seat) => (
+            {seatOrder.map((seat) => (
               <th key={seat} scope="col" className={seat === view.you ? "is-me" : ""}>
                 <span className="jk-scoretable__player">
                   <Avatar name={pseudoOf(seat)} size={30} />
@@ -114,7 +118,7 @@ export function ScoreTable({
                     <th className="jk-scoretable__rowlabel" scope="row">
                       {deal.cardsPerPlayer}
                     </th>
-                    {SEATS.map((seat) => {
+                    {seatOrder.map((seat) => {
                       const bid = deal.bids[seat];
                       const won = deal.tricksWon[seat];
                       const score = deal.scores[seat];
@@ -145,7 +149,7 @@ export function ScoreTable({
                           ? "Total"
                           : `Set ${setEnds.indexOf(deal.dealIndex) + 1}`}
                       </th>
-                      {SEATS.map((seat) => (
+                      {seatOrder.map((seat) => (
                         <td key={seat} className="jk-scoretable__subtotal">
                           {formatPoints(running[seat])}
                         </td>
@@ -163,7 +167,7 @@ export function ScoreTable({
                 <th className="jk-scoretable__rowlabel" scope="row">
                   En cours
                 </th>
-                {SEATS.map((seat) => {
+                {seatOrder.map((seat) => {
                   const bid = view.bids[seat];
                   const won = view.tricksWon[seat];
                   const met = bid !== null && won === bid;
@@ -182,29 +186,43 @@ export function ScoreTable({
                   Score
                 </th>
                 {pairs ? (
-                  // 2 totaux d'équipe (somme des partenaires en face) : mon
-                  // équipe (celle de view.you) affichée en premier.
+                  // 2 totaux d'équipe (somme des partenaires en face), ancrés
+                  // sur l'ordre des colonnes [0, 2, 1, 3] : le 1er colSpan
+                  // recouvre les colonnes des sièges 0+2, le 2d celles de 1+3.
+                  // « Nous »/« Eux » suit l'équipe de view.you (parité).
                   (() => {
                     const teamOfMe = view.you % 2;
                     const totalA = view.scores[0] + view.scores[2]; // sièges 0+2
                     const totalB = view.scores[1] + view.scores[3]; // sièges 1+3
-                    const mine = teamOfMe === 0 ? totalA : totalB;
-                    const theirs = teamOfMe === 0 ? totalB : totalA;
                     return (
                       <>
-                        <td colSpan={2} className="jk-scoretable__subtotal jk-scoretable__teamscore is-mine">
-                          <span className="jk-scoretable__teamlabel">Nous</span>
-                          {formatPoints(mine)}
+                        <td
+                          colSpan={2}
+                          className={`jk-scoretable__subtotal jk-scoretable__teamscore${
+                            teamOfMe === 0 ? " is-mine" : ""
+                          }`}
+                        >
+                          <span className="jk-scoretable__teamlabel">
+                            {teamOfMe === 0 ? "Nous" : "Eux"}
+                          </span>
+                          {formatPoints(totalA)}
                         </td>
-                        <td colSpan={2} className="jk-scoretable__subtotal jk-scoretable__teamscore">
-                          <span className="jk-scoretable__teamlabel">Eux</span>
-                          {formatPoints(theirs)}
+                        <td
+                          colSpan={2}
+                          className={`jk-scoretable__subtotal jk-scoretable__teamscore${
+                            teamOfMe === 1 ? " is-mine" : ""
+                          }`}
+                        >
+                          <span className="jk-scoretable__teamlabel">
+                            {teamOfMe === 1 ? "Nous" : "Eux"}
+                          </span>
+                          {formatPoints(totalB)}
                         </td>
                       </>
                     );
                   })()
                 ) : (
-                  SEATS.map((seat) => (
+                  seatOrder.map((seat) => (
                     <td key={seat} className="jk-scoretable__subtotal">
                       {formatPoints(view.scores[seat])}
                     </td>

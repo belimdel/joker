@@ -20,6 +20,12 @@ export function Lobby() {
     (seat) => players.find((p) => p.seat === seat) ?? null
   );
 
+  // Ordre d'AFFICHAGE des sièges. En 2v2 les équipes sont par parité
+  // (0+2 contre 1+3, partenaires en face sur le plateau) : on regroupe
+  // donc les partenaires de part et d'autre du « VS » — [0, 2] VS [1, 3].
+  // Sinon, ordre naturel.
+  const displayOrder = pairs ? [0, 2, 1, 3] : [0, 1, 2, 3];
+
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(lobby.gameId);
@@ -65,16 +71,17 @@ export function Lobby() {
         </div>
 
         <div className="jk-seats">
-          {seats.map((p, i) => {
-            const lvl = p ? (lobby.playerLevels?.[i] ?? null) : null;
+          {displayOrder.map((seatNo, idx) => {
+            const p = seats[seatNo];
+            const lvl = p ? (lobby.playerLevels?.[seatNo] ?? null) : null;
             // Un siège LIBRE (et pas le mien) est cliquable → je m'y déplace.
-            const canPick = !p && i !== mySeat;
+            const canPick = !p && seatNo !== mySeat;
             const seatClass = [
               "jk-seat",
               p && "is-filled",
-              i === mySeat && "is-me",
+              seatNo === mySeat && "is-me",
               canPick && "is-pickable",
-              pairs && (i % 2 === 0 ? "jk-seat--team-a" : "jk-seat--team-b"),
+              pairs && (seatNo % 2 === 0 ? "jk-seat--team-a" : "jk-seat--team-b"),
             ]
               .filter(Boolean)
               .join(" ");
@@ -91,14 +98,14 @@ export function Lobby() {
               </>
             );
             return (
-              <span key={i} style={{ display: "contents" }}>
-                {i === 2 && pairs && <span className="jk-seats__vs">VS</span>}
+              <span key={seatNo} style={{ display: "contents" }}>
+                {idx === 2 && pairs && <span className="jk-seats__vs">VS</span>}
                 {canPick ? (
                   <button
                     type="button"
                     className={seatClass}
-                    onClick={() => chooseSeat(i)}
-                    aria-label={`Prendre le siège ${i + 1}`}
+                    onClick={() => chooseSeat(seatNo)}
+                    aria-label={`Prendre le siège ${seatNo + 1}`}
                   >
                     {inner}
                   </button>

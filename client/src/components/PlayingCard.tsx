@@ -10,10 +10,6 @@ const SUIT: Record<Suit, { glyph: string; tone: "red" | "ink" }> = {
   clubs: { glyph: "♣", tone: "ink" },
 };
 
-// Figures : on met une GRANDE lettre au centre (au lieu d'un simple pip)
-// pour qu'un Valet/Dame/Roi/As se lise d'un coup d'œil.
-const COURT_RANKS = new Set(["J", "Q", "K", "A"]);
-
 export type PlayingCardProps = {
   card?: Card; // absent ou faceDown → dos de carte
   faceDown?: boolean;
@@ -44,18 +40,16 @@ function CardFace({ card }: { card: Card }) {
     );
   }
   const s = SUIT[card.suit];
-  const isCourt = COURT_RANKS.has(card.rank);
+  // Valeur affichée EN GRAND au centre (rang + enseigne) pour TOUTES les
+  // cartes — chiffres comme figures : la valeur est lisible d'un coup d'œil,
+  // et l'index de coin reste petit (pas de chevauchement centre/coin).
   return (
     <span className={`jk-card__face jk-card__face--${s.tone}`}>
       <Corner rank={card.rank} glyph={s.glyph} place="tl" />
-      {isCourt ? (
-        <span className="jk-card__court">
-          <span className="jk-card__court-letter">{card.rank}</span>
-          <span className="jk-card__court-suit">{s.glyph}</span>
-        </span>
-      ) : (
-        <span className="jk-card__pip">{s.glyph}</span>
-      )}
+      <span className="jk-card__court">
+        <span className="jk-card__court-letter">{card.rank}</span>
+        <span className="jk-card__court-suit">{s.glyph}</span>
+      </span>
       <Corner rank={card.rank} glyph={s.glyph} place="br" />
     </span>
   );

@@ -432,8 +432,15 @@
 .jk-hand__slot:first-child {
   margin-left: 0;
 }
-.jk-hand__slot:hover {
-  z-index: 5;
+/* Remontée au survol : UNIQUEMENT sur les appareils à vrai survol
+   (souris). Sur tactile, le :hover est « collant » après un tap : le
+   z-index restait bloqué sur la dernière carte touchée et, après le
+   re-rendu de la main, la carte voisine de droite se retrouvait cachée
+   DERRIÈRE ses deux voisines (illisible). L'ordre DOM suffit sur tactile. */
+@media (hover: hover) {
+  .jk-hand__slot:hover {
+    z-index: 5;
+  }
 }
 
 /* ─── Toast d'erreur ──────────────────────────────────────────── */

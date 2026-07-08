@@ -225,6 +225,15 @@ export function Play({ onLogin: _onLogin }: PlayProps) {
         Partie solo (test)
       </button>
 
+      {/* Solo 2v2 : moi + un bot équipier en face (siège 2), contre 2 bots. */}
+      <button
+        className="jk-btn jk-btn--ghost jk-btn--block"
+        disabled={!canAct}
+        onClick={() => startTestGame(pseudo, true)}
+      >
+        Partie solo 2v2 (test)
+      </button>
+
       {showCreate && (
         <CreateRoomModal
           onClose={() => setShowCreate(false)}

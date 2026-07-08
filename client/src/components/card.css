@@ -41,11 +41,15 @@
 .jk-card.is-clickable {
   cursor: pointer;
 }
-.jk-card.is-clickable:hover {
-  transform: translateY(-12px);
-  box-shadow:
-    0 18px 30px rgba(0, 0, 0, 0.5),
-    inset 0 0 0 3px rgba(255, 255, 255, 0.5);
+/* Survol réservé aux appareils à souris : sur tactile le :hover est
+   « collant » après un tap et laissait une carte surélevée au hasard. */
+@media (hover: hover) {
+  .jk-card.is-clickable:hover {
+    transform: translateY(-12px);
+    box-shadow:
+      0 18px 30px rgba(0, 0, 0, 0.5),
+      inset 0 0 0 3px rgba(255, 255, 255, 0.5);
+  }
 }
 .jk-card.is-selected {
   transform: translateY(-16px);
@@ -71,45 +75,37 @@
   color: var(--card-ink);
 }
 
+/* Index de coin : PETIT (rang + enseigne empilés), collé dans l'angle.
+   Reste discret pour ne jamais chevaucher la valeur centrale. */
 .jk-card__corner {
   position: absolute;
   display: flex;
   flex-direction: column;
   align-items: center;
-  line-height: 0.92;
+  line-height: 0.9;
 }
 .jk-card__corner--tl {
-  top: calc(var(--w) * 0.07);
-  left: calc(var(--w) * 0.09);
+  top: calc(var(--w) * 0.06);
+  left: calc(var(--w) * 0.07);
 }
 .jk-card__corner--br {
-  bottom: calc(var(--w) * 0.07);
-  right: calc(var(--w) * 0.09);
+  bottom: calc(var(--w) * 0.06);
+  right: calc(var(--w) * 0.07);
   transform: rotate(180deg);
 }
 .jk-card__rank {
   font-weight: 800;
-  font-size: calc(var(--w) * 0.36);
+  font-size: calc(var(--w) * 0.24);
   letter-spacing: -0.02em;
 }
 .jk-card__suit {
-  font-size: calc(var(--w) * 0.32);
+  font-size: calc(var(--w) * 0.2);
   line-height: 1;
   margin-top: calc(var(--w) * -0.01);
 }
 
-/* Gros symbole central (cartes numériques 6→10) : bien net et grand. */
-.jk-card__pip {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: calc(var(--w) * 0.78);
-  line-height: 1;
-}
-
-/* Figures (J/Q/K/A) : grande lettre + enseigne, bien lisibles */
+/* Valeur centrale (TOUTES les cartes) : grand rang + enseigne, centrés.
+   C'est l'élément lisible principal ; l'index de coin n'est qu'un rappel. */
 .jk-card__court {
   position: absolute;
   inset: 0;
@@ -121,12 +117,12 @@
 }
 .jk-card__court-letter {
   font-weight: 800;
-  font-size: calc(var(--w) * 0.66);
+  font-size: calc(var(--w) * 0.5);
   line-height: 0.82;
   letter-spacing: -0.02em;
 }
 .jk-card__court-suit {
-  font-size: calc(var(--w) * 0.4);
+  font-size: calc(var(--w) * 0.32);
   line-height: 1;
 }
 
